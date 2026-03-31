@@ -35,7 +35,7 @@ trait CustomerOrderTrait
 
         $hposEnabled = \get_option('woocommerce_custom_orders_table_enabled') === 'yes';
 
-        $dateColumn   = $hposEnabled ? 'date_created_gmt' : 'post_date';
+        $dateColumn   = $hposEnabled ? 'date_created_gmt' : 'post_date_gmt';
         $statusColumn = $hposEnabled ? 'status' : 'post_status';
         $typeColumn   = $hposEnabled ? 'type' : 'post_type';
         $from         = $hposEnabled ? $wpdb->prefix . 'wc_orders' : $wpdb->posts;

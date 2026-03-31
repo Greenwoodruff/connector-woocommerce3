@@ -16,6 +16,8 @@ Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connecto
 | #3 | Vendor/Autoload Fehlerbehandlung | `6594bfd` |
 | #4 | PWB-Brand Sync Fix (Manufacturer Lookup) | `9a3ca54` |
 | #5 | Individuelle Lieferzeit für Lagerware | `bd099bc` |
+| #6 | Manufacturer Push TypeError-Fix | `593dd17` |
+| #7 | Bestellungs-Sync Zeitzonenfehler Fix | aktuell |
 
 ---
 
@@ -304,6 +306,62 @@ if (
 
 ---
 
+## PR #6: Manufacturer Push TypeError-Fix
+
+**Commit:** `593dd17`
+**Zweck:** Behebt einen Fehler, bei dem der Push eines Herstellers fehlschlug, wenn ein Drittanbieter-Plugin-Hook einen `TypeError` auslöste. Die Exception wird nun abgefangen und geloggt, statt den gesamten Sync-Vorgang abzubrechen.
+
+### Betroffene Datei
+- `src/Controllers/ProductManufacturerController.php` (oder verwandte Datei)
+
+### Ursache
+Drittanbieter-Plugins können WordPress-Hooks abfeuern, die unerwartete Datentypen zurückliefern. Das führte zu einem `TypeError`, der den gesamten Push-Prozess unterbrach.
+
+### Lösung
+`TypeError`-Exceptions werden nun im Manufacturer-Push-Vorgang abgefangen und als Warnung geloggt, statt den Sync abzubrechen.
+
+---
+
+## PR #7: Bestellungs-Sync Zeitzonenfehler Fix
+
+**Commit:** aktuell (März 2026)
+**Zweck:** Behebt einen Fehler, durch den neue Bestellungen erst nach 1 Stunde (Winterzeit) bzw. 2 Stunden (Sommerzeit) von JTL-Wawi synchronisiert wurden.
+
+### Betroffene Datei
+- `src/Utilities/SqlTraits/CustomerOrderTrait.php`
+
+### Ursache
+WordPress speichert `post_date` in der **lokalen Zeitzone** des Servers (z.B. MEZ = UTC+1, MESZ = UTC+2), während MySQL `NOW()` in **UTC** zurückgibt. Die SQL-Abfrage verglich diese beiden unterschiedlichen Zeitzonen:
+
+```sql
+-- PROBLEM: post_date ist lokale Zeit, NOW() ist UTC
+AND p.post_date < DATE_SUB(NOW(), INTERVAL 60 SECOND)
+```
+
+Dadurch erschienen neue Bestellungen für MySQL bis zu 2 Stunden "in der Zukunft" und wurden erst nach Ablauf dieser Differenz als abrufbar erkannt.
+
+### Änderung im Detail
+
+**Datei:** `src/Utilities/SqlTraits/CustomerOrderTrait.php`, Zeile 38
+
+```php
+// VORHER:
+$dateColumn = $hposEnabled ? 'date_created_gmt' : 'post_date';
+
+// NACHHER:
+$dateColumn = $hposEnabled ? 'date_created_gmt' : 'post_date_gmt';
+```
+
+`post_date_gmt` enthält die Bestellzeit in UTC — damit vergleichen beide Seiten der SQL-Bedingung UTC-Zeiten, unabhängig von Sommer- oder Winterzeit.
+
+### Hinweis bei neuer Connector-Version
+Bei einem Update auf eine neue Hersteller-Version muss diese Zeile erneut angepasst werden. Die Stelle ist leicht zu finden:
+```bash
+grep -n "post_date" src/Utilities/SqlTraits/CustomerOrderTrait.php
+```
+
+---
+
 ## Wiederherstellung der Änderungen
 
 Falls der Fork verloren geht, können die Änderungen wie folgt wiederhergestellt werden:
@@ -322,10 +380,11 @@ Die oben dokumentierten Code-Änderungen können manuell in die entsprechenden D
 2. `src/Integrations/Plugins/PerfectWooCommerceBrands/PerfectWooCommerceBrands.php` - `return true;`
 3. `src/Utilities/SupportedPlugins.php` - `isPerfectWooCommerceBrandsActive()` auf `return true;`
 4. `woo-jtl-connector.php` - Autoload-Fehlerbehandlung hinzufügen
-5. `src/Controllers/Product/ProductManufacturerController.php` - Manufacturer-Lookup Methode
+5. `src/Controllers/Product/ProductManufacturerController.php` - Manufacturer-Lookup Methode + TypeError-Fix
 6. `src/Utilities/Config.php` - Neue Option hinzufügen
 7. `includes/JtlConnectorAdmin.php` - Admin-Eingabefeld hinzufügen
 8. `src/Controllers/Product/ProductDeliveryTimeController.php` - In-Stock-Lieferzeit-Logik
+9. `src/Utilities/SqlTraits/CustomerOrderTrait.php` - `post_date` → `post_date_gmt` (Zeile 38)
 
 ---
 
