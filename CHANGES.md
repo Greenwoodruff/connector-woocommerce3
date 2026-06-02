@@ -17,7 +17,8 @@ Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connecto
 | #4 | PWB-Brand Sync Fix (Manufacturer Lookup) | `9a3ca54` |
 | #5 | Individuelle Lieferzeit für Lagerware | `bd099bc` |
 | #6 | Manufacturer Push TypeError-Fix | `593dd17` |
-| #7 | Bestellungs-Sync Zeitzonenfehler Fix | aktuell |
+| #7 | Bestellungs-Sync Zeitzonenfehler Fix | `bbfb6e6` |
+| #8 | "Erscheint am" als Lieferzeit in WooCommerce | aktuell |
 
 ---
 
@@ -385,6 +386,112 @@ Die oben dokumentierten Code-Änderungen können manuell in die entsprechenden D
 7. `includes/JtlConnectorAdmin.php` - Admin-Eingabefeld hinzufügen
 8. `src/Controllers/Product/ProductDeliveryTimeController.php` - In-Stock-Lieferzeit-Logik
 9. `src/Utilities/SqlTraits/CustomerOrderTrait.php` - `post_date` → `post_date_gmt` (Zeile 38)
+10. `src/Utilities/Config.php` - Neue Optionen für "Erscheint am"
+11. `includes/JtlConnectorAdmin.php` - Admin-Felder für "Erscheint am"
+12. `src/Controllers/Product/ProductDeliveryTimeController.php` - "Erscheint am"-Logik
+
+---
+
+## PR #8: "Erscheint am" (Lageroptionen) als Lieferzeit in WooCommerce
+
+**Commit:** aktuell
+**Zweck:** Ermöglicht es, das JTL-Feld "Erscheint am" aus den Lageroptionen als datumbasierte Lieferzeit in WooCommerce anzuzeigen (z.B. "Lieferbar ab 15.07.2025"), wenn ein Artikel nicht auf Lager ist.
+
+### Hintergrund
+
+In JTL Wawi kann im Tab "Lageroptionen" eines Artikels ein "Erscheint am"-Datum gesetzt werden. Dieses Datum (`availableFrom` im Connector-Modell) wird bisher nur für das WordPress-Veröffentlichungsdatum (`post_date`) genutzt. Bei nicht-vorrätigen Artikeln soll es stattdessen als lesbarer Lieferzeittext erscheinen.
+
+Bisher: Lieferzeit bei Lager=0 → Anzahl Tage (aus Lieferantenbestellung oder Tage-bis-Versand)
+Neu: Optional → "Lieferbar ab 15.07.2025" direkt aus dem JTL-Feld
+
+### Betroffene Dateien
+1. `src/Utilities/Config.php`
+2. `includes/JtlConnectorAdmin.php`
+3. `src/Controllers/Product/ProductDeliveryTimeController.php`
+
+### Änderungen im Detail
+
+**Config.php – Neue Konstanten (nach `OPTIONS_IN_STOCK_DELIVERY_TIME`):**
+```php
+// FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
+OPTIONS_CONSIDER_ERSCHEINT_AM_DATE = 'jtlconnector_consider_erscheint_am_date',
+OPTIONS_ERSCHEINT_AM_PREFIX        = 'jtlconnector_erscheint_am_prefix',
+// END FORK ADDITION
+```
+
+**Config.php – Default-Werte (in `JTLWCC_CONFIG_DEFAULTS`):**
+```php
+// FORK ADDITION:
+Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE => false,
+Config::OPTIONS_ERSCHEINT_AM_PREFIX        => 'Lieferbar ab',
+// END FORK ADDITION
+```
+
+**Config.php – Typen (in `JTLWCC_CONFIG`):**
+```php
+// FORK ADDITION:
+Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE => 'bool',
+Config::OPTIONS_ERSCHEINT_AM_PREFIX        => 'string',
+// END FORK ADDITION
+```
+
+**JtlConnectorAdmin.php – Neue Admin-Felder (nach dem `OPTIONS_CONSIDER_SUPPLIER_INFLOW_DATE`-Block, vor `sectionend`):**
+```php
+// FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
+$fields[] = [
+    'title'     => __('Consider "Erscheint am" date as delivery time', JTLWCC_TEXT_DOMAIN),
+    'type'      => 'active_true_false_radio',
+    'desc'      => ...
+    'id'        => Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE,
+    ...
+];
+
+$fields[] = [
+    'title'     => __('Prefix for "Erscheint am" delivery time', JTLWCC_TEXT_DOMAIN),
+    'type'      => 'jtl_text_input',
+    'id'        => Config::OPTIONS_ERSCHEINT_AM_PREFIX,
+    ...
+];
+// END FORK ADDITION
+```
+
+**ProductDeliveryTimeController.php – Neue Logik in `pushData()` (vor dem `get_term_by`-Aufruf):**
+```php
+// FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
+// Overrides $deliveryTimeString when stock is 0 and availableFrom lies in the future.
+// Priority: lower than in-stock time, higher than day-count string.
+// Re-apply this block after upstream merges in pushData().
+if (
+    !$useInStockDeliveryTime
+    && Config::get(Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE, false)
+    && $product->getStockLevel() <= 0
+    && !\is_null($product->getAvailableFrom())
+) {
+    $erscheintAm = new \DateTime($product->getAvailableFrom()->format('Y-m-d'));
+    $today       = new \DateTime((new \DateTime())->format('Y-m-d'));
+    if ($erscheintAm->getTimestamp() > $today->getTimestamp()) {
+        /** @var string $erscheintAmPrefix */
+        $erscheintAmPrefix  = Config::get(Config::OPTIONS_ERSCHEINT_AM_PREFIX, 'Lieferbar ab');
+        $deliveryTimeString = \trim($erscheintAmPrefix . ' ' . $erscheintAm->format('d.m.Y'));
+    }
+}
+// END FORK ADDITION
+```
+
+### Priorität der Lieferzeitbestimmung (nach dem Change)
+
+1. Artikel auf Lager (stock > 0) + Custom In-Stock-Text konfiguriert → Custom-Text
+2. Artikel auf Lager → normale Tage-Berechnung
+3. Artikel **nicht** auf Lager + "Erscheint am" in Zukunft + Option aktiv → **"Lieferbar ab TT.MM.YYYY"**
+4. Artikel nicht auf Lager + Lieferantenzugang bekannt → Tage-Berechnung aus Lieferantenbestellung
+5. Sonst → Standardberechnung (Tage-bis-Versand)
+
+### Nach einem JTL-Upstream-Update
+Alle Fork-Blöcke sind mit `// FORK ADDITION:` und `// END FORK ADDITION` markiert. Nach einem Merge:
+```bash
+git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php
+```
+zeigt genau die Blöcke, die ggf. neu angewendet werden müssen.
 
 ---
 

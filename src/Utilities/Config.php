@@ -42,6 +42,10 @@ class Config
         OPTIONS_AUTO_GERMAN_MARKET_OPTIONS               = 'jtlconnector_auto_german_market',
         OPTIONS_CONSIDER_SUPPLIER_INFLOW_DATE            = 'jtlconnector_consider_supplier_inflow_date',
         OPTIONS_IN_STOCK_DELIVERY_TIME                   = 'jtlconnector_in_stock_delivery_time',
+        // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
+        OPTIONS_CONSIDER_ERSCHEINT_AM_DATE               = 'jtlconnector_consider_erscheint_am_date',
+        OPTIONS_ERSCHEINT_AM_PREFIX                      = 'jtlconnector_erscheint_am_prefix',
+        // END FORK ADDITION
         OPTIONS_CUSTOM_CHECKOUT_FIELDS                   = 'jtlconnector_custom_checkout_fields',
         OPTIONS_LIMIT_CUSTOMER_QUERY_TYPE                = 'jtlconnector_limit_customer_query',
         OPTIONS_FEATURES_JSON                            = 'jtlconnector_features_json',
@@ -64,6 +68,10 @@ class Config
         Config::OPTIONS_SUFFIX_DELIVERYTIME => ' Werktage',
         Config::OPTIONS_CONSIDER_SUPPLIER_INFLOW_DATE => false,
         Config::OPTIONS_IN_STOCK_DELIVERY_TIME => '',
+        // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
+        Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE => false,
+        Config::OPTIONS_ERSCHEINT_AM_PREFIX        => 'Lieferbar ab',
+        // END FORK ADDITION
         //PAGE
         Config::OPTIONS_COMPLETED_ORDERS => true,
         Config::OPTIONS_PULL_ORDERS_SINCE => '',
@@ -109,6 +117,10 @@ class Config
         Config::OPTIONS_SUFFIX_DELIVERYTIME => 'string',
         Config::OPTIONS_CONSIDER_SUPPLIER_INFLOW_DATE => 'bool',
         Config::OPTIONS_IN_STOCK_DELIVERY_TIME => 'string',
+        // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
+        Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE => 'bool',
+        Config::OPTIONS_ERSCHEINT_AM_PREFIX        => 'string',
+        // END FORK ADDITION
         //PAGE
         Config::OPTIONS_COMPLETED_ORDERS => 'bool',
         Config::OPTIONS_PULL_ORDERS_SINCE => 'date',

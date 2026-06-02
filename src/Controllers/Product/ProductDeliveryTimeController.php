@@ -118,6 +118,26 @@ class ProductDeliveryTimeController extends AbstractBaseController
                 }
             }
 
+            // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
+            // Overrides the calculated $deliveryTimeString when stock is 0 and the "Erscheint am" date
+            // (availableFrom) lies in the future. Priority: lower than in-stock time, higher than
+            // the day-count string. Re-apply this block after upstream merges in pushData().
+            if (
+                !$useInStockDeliveryTime
+                && Config::get(Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE, false)
+                && $product->getStockLevel() <= 0
+                && !\is_null($product->getAvailableFrom())
+            ) {
+                $erscheintAm = new \DateTime($product->getAvailableFrom()->format('Y-m-d'));
+                $today       = new \DateTime((new \DateTime())->format('Y-m-d'));
+                if ($erscheintAm->getTimestamp() > $today->getTimestamp()) {
+                    /** @var string $erscheintAmPrefix */
+                    $erscheintAmPrefix  = Config::get(Config::OPTIONS_ERSCHEINT_AM_PREFIX, 'Lieferbar ab');
+                    $deliveryTimeString = \trim($erscheintAmPrefix . ' ' . $erscheintAm->format('d.m.Y'));
+                }
+            }
+            // END FORK ADDITION
+
             $term = \get_term_by(
                 'slug',
                 \wc_sanitize_taxonomy_name(

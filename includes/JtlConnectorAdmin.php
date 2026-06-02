@@ -1344,6 +1344,35 @@ final class JtlConnectorAdmin //phpcs:ignore PSR1.Classes.ClassDeclaration.Missi
             'falseText' => __('Disabled', JTLWCC_TEXT_DOMAIN),
         ];
 
+        // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
+        $fields[] = [
+            'title'     => __('Consider "Erscheint am" date as delivery time', JTLWCC_TEXT_DOMAIN),
+            'type'      => 'active_true_false_radio',
+            'desc'      => __(
+                'Enable to use the "Erscheint am" field from JTL stock options (Lageroptionen) ' .
+                'as a delivery time string when stock is 0 and no supplier inflow date is available. ' .
+                'Displays a date-based text instead of a number of days (e.g. "Lieferbar ab 15.07.2025").',
+                JTLWCC_TEXT_DOMAIN
+            ),
+            'id'        => Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE,
+            'value'     => Config::get(Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE),
+            'trueText'  => __('Enabled', JTLWCC_TEXT_DOMAIN),
+            'falseText' => __('Disabled', JTLWCC_TEXT_DOMAIN),
+        ];
+
+        $fields[] = [
+            'title'     => __('Prefix for "Erscheint am" delivery time', JTLWCC_TEXT_DOMAIN),
+            'type'      => 'jtl_text_input',
+            'id'        => Config::OPTIONS_ERSCHEINT_AM_PREFIX,
+            'value'     => Config::get(Config::OPTIONS_ERSCHEINT_AM_PREFIX),
+            'helpBlock' => __(
+                'Text shown before the date when using "Erscheint am" as delivery time.' . PHP_EOL .
+                'Example: "Lieferbar ab" → displays "Lieferbar ab 15.07.2025".',
+                JTLWCC_TEXT_DOMAIN
+            ),
+        ];
+        // END FORK ADDITION
+
         //Add sectionend
         $fields[] = [
             'type' => 'sectionend',
