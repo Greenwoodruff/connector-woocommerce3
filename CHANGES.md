@@ -62,10 +62,18 @@ cp -r "$ROOT/src"      "$DIST/src"
 # 2. Production-Dependencies installieren (kein dev-Ballast)
 cd "$DIST" && composer install --no-dev --no-interaction --ignore-platform-reqs
 
-# 3. ZIP erstellen (woo-jtl-connector-camplorer/ als Top-Level-Ordner)
+# 3. ZIP erstellen (woo-jtl-connector-camplorer/ als Top-Level-Ordner, Forward-Slashes fuer Linux)
 powershell.exe -NoProfile -Command "
+  Add-Type -AssemblyName System.IO.Compression
   Add-Type -AssemblyName System.IO.Compression.FileSystem
-  [System.IO.Compression.ZipFile]::CreateFromDirectory('$ROOT/_dist_tmp', '$ZIP')
+  \$src = '$ROOT/_dist_tmp'.Replace('/', '\')
+  if (Test-Path '$ZIP') { Remove-Item -Force '$ZIP' }
+  \$archive = [System.IO.Compression.ZipFile]::Open('$ZIP', [System.IO.Compression.ZipArchiveMode]::Create)
+  Get-ChildItem -Path \$src -Recurse -File | ForEach-Object {
+      \$rel = \$_.FullName.Substring(\$src.Length + 1).Replace('\', '/')
+      [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(\$archive, \$_.FullName, \$rel) | Out-Null
+  }
+  \$archive.Dispose()
 "
 ```
 
