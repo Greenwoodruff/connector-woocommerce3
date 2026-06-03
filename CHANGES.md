@@ -10,6 +10,45 @@ Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connecto
 > Beispiel: JTL bringt 2.5.0 → nach dem Merge wird unsere Version `2.5.0.1`.
 > Geändert wird in: `build-config.yaml` (Zeile 1) und `woo-jtl-connector.php` (Plugin-Header).
 
+**WordPress Plugin-Ordner:** `woo-jtl-connector-camplorer` (fest, unabhängig von der Version)
+
+---
+
+## ZIP erstellen
+
+```bash
+ROOT="<pfad-zum-repo>"
+DIST="$ROOT/_dist_tmp/woo-jtl-connector-camplorer"
+ZIP="$ROOT/woo-jtl-connector-camplorer-<version>.zip"
+
+# 1. Dist-Ordner aufbauen
+rm -rf "$DIST"
+mkdir -p "$DIST/config" "$DIST/db" "$DIST/logs" "$DIST/plugins/jtl" "$DIST/tmp"
+for f in index.php woo-jtl-connector.php uninstall.php LICENSE CHANGELOG.md readme.txt build-config.yaml composer.json composer.lock; do
+    [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$DIST/$f"
+done
+for f in config.json features.json.example .htaccess; do
+    [ -f "$ROOT/config/$f" ] && cp "$ROOT/config/$f" "$DIST/config/$f"
+done
+[ -f "$ROOT/db/.htaccess" ]   && cp "$ROOT/db/.htaccess"   "$DIST/db/.htaccess"
+[ -f "$ROOT/logs/.htaccess" ] && cp "$ROOT/logs/.htaccess" "$DIST/logs/.htaccess"
+cp -r "$ROOT/includes" "$DIST/includes"
+cp -r "$ROOT/src"      "$DIST/src"
+[ -d "$ROOT/plugins/jtl" ] && cp -r "$ROOT/plugins/jtl" "$DIST/plugins/jtl"
+
+# 2. Production-Dependencies installieren (kein dev-Ballast)
+cd "$DIST" && composer install --no-dev --no-interaction --ignore-platform-reqs
+
+# 3. ZIP erstellen (woo-jtl-connector-camplorer/ als Top-Level-Ordner)
+powershell.exe -NoProfile -Command "
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  [System.IO.Compression.ZipFile]::CreateFromDirectory('$ROOT/_dist_tmp', '$ZIP')
+"
+```
+
+> **Wichtig:** ZIP immer vom `_dist_tmp`-Ordner (Elternordner von `woo-jtl-connector-camplorer`) erstellen,
+> damit WordPress beim Installieren `woo-jtl-connector-camplorer/` als Plugin-Ordner erkennt.
+
 ---
 
 ## Update-Strategie bei einer neuen JTL-Upstream-Version
