@@ -14,6 +14,29 @@ Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connecto
 
 ---
 
+## Einmaliger Wechsel vom Original-Plugin zu diesem Fork
+
+Da der Plugin-Ordner von `woo-jtl-connector` auf `woo-jtl-connector-camplorer` wechselt, muss das alte Plugin einmalig ersetzt werden. **Wichtig:** Alle Einstellungen und Sync-Daten bleiben erhalten — solange das alte Plugin nicht über WordPress gelöscht wird.
+
+### ⚠ Was beim Löschen über WordPress verloren geht
+
+- **Deaktivieren:** löscht nur das Connector-Passwort (API-Token) — alles andere bleibt
+- **Löschen (über WP-Admin):** löscht alle Einstellungen (`jtlconnector_*`) **und alle Link-Tabellen** (`jtl_connector_link_product`, `jtl_connector_link_order` etc.) — danach weiß JTL Wawi nicht mehr welche Produkte/Bestellungen schon synchronisiert sind → kompletter Neu-Abgleich nötig
+
+### Sichere Vorgehensweise
+
+1. Altes Plugin in WP-Admin **nur deaktivieren** — nicht auf "Löschen" klicken
+2. Neuen ZIP (`woo-jtl-connector-camplorer-*.zip`) in WP-Admin hochladen und installieren
+3. Neues Plugin aktivieren
+4. Connector-Passwort (API-Token) neu eintragen — das ist das einzige was neu gesetzt werden muss
+5. Alle anderen Einstellungen, Lieferzeiten und Konfigurationen sind automatisch wieder da
+
+> Das alte (deaktivierte) Plugin kann dauerhaft im Plugins-Ordner stehen bleiben.
+> Wer es trotzdem entfernen möchte: Ordner `woo-jtl-connector/` direkt per FTP oder SSH
+> aus `wp-content/plugins/` löschen — dann läuft `uninstall.php` nicht und die Daten bleiben erhalten.
+
+---
+
 ## ZIP erstellen
 
 ```bash
