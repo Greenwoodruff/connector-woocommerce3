@@ -3,7 +3,56 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.1
+**Fork-Version:** 2.4.1.1 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
+
+> **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
+> Beispiel: JTL bringt 2.5.0 → nach dem Merge wird unsere Version `2.5.0.1`.
+> Geändert wird in: `build-config.yaml` (Zeile 1) und `woo-jtl-connector.php` (Plugin-Header).
+
+---
+
+## Update-Strategie bei einer neuen JTL-Upstream-Version
+
+```bash
+git fetch upstream
+git merge upstream/master
+```
+
+Git löst Merge-Konflikte automatisch; betroffene Dateien mit Konflikten anzeigen:
+
+```bash
+git diff --name-only --diff-filter=U
+```
+
+Alle Fork-Änderungen sind im Code mit Markern gekennzeichnet:
+- Neue Blöcke: `// FORK ADDITION (PR #N):` … `// END FORK ADDITION`
+- Fixes an bestehenden Zeilen: `// FORK FIX (PR #N):` … `// END FORK FIX`
+- Entfernter Code (PR #1): kein Marker möglich — laut Tabelle unten und CHANGES.md manuell prüfen
+
+Nach dem Merge alle Marker-Blöcke prüfen:
+
+```bash
+git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php
+git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
+```
+
+### Checkliste der zu prüfenden Dateien nach einem Upstream-Merge
+
+| Datei | PR | Marker im Code |
+|---|---|---|
+| `src/Controllers/ProductController.php` | #1 | ⚠ kein Marker (Code wurde entfernt) |
+| `src/Integrations/Plugins/PerfectWooCommerceBrands/PerfectWooCommerceBrands.php` | #2 | `FORK ADDITION (PR #2)` |
+| `src/Utilities/SupportedPlugins.php` | #2 | `FORK ADDITION (PR #2)` |
+| `woo-jtl-connector.php` | #3 | `FORK ADDITION (PR #3)` |
+| `src/Controllers/Product/ProductManufacturerController.php` | #4 | `FORK ADDITION (PR #4)` |
+| `src/Utilities/Config.php` | #5, #8 | `FORK ADDITION` |
+| `includes/JtlConnectorAdmin.php` | #5, #8 | `FORK ADDITION` |
+| `src/Controllers/Product/ProductDeliveryTimeController.php` | #5, #8 | `FORK ADDITION` |
+| `src/Controllers/ManufacturerController.php` | #6 | `FORK ADDITION (PR #6)` |
+| `src/Utilities/SqlTraits/CustomerOrderTrait.php` | #7 | `FORK FIX (PR #7)` |
+
+**PR #1 (ACF) manuell prüfen:** In `src/Controllers/ProductController.php` darf kein Aufruf von `ProductAdvancedCustomFieldsController` stehen (weder im Pull- noch im Push-Abschnitt).
 
 ---
 
@@ -26,6 +75,13 @@ Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connecto
 
 **Commit:** `0f493e33c5cc86984724998a55a35dca7b13e036`
 **Zweck:** Die ACF (Advanced Custom Fields) Synchronisation wurde deaktiviert, da sie nicht benötigt wird.
+
+> **⚠ Kein Code-Marker möglich:** Da Code entfernt wurde, gibt es keinen `FORK ADDITION`-Block im Quellcode.
+> Nach einem Upstream-Merge prüfen mit:
+> ```bash
+> grep -n "ProductAdvancedCustomFields" src/Controllers/ProductController.php
+> ```
+> Das Ergebnis muss **leer** sein.
 
 ### Betroffene Datei
 - `src/Controllers/ProductController.php`

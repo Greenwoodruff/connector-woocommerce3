@@ -225,6 +225,7 @@ class ManufacturerController extends AbstractBaseController implements
                 if ($term === false) {
                     //Add term
                     $newTerm = null;
+                    // FORK ADDITION (PR #6): wrap wp_insert_term in try-catch for third-party plugin TypeError
                     try {
                         $newTerm = \wp_insert_term(
                             $model->getName(),
@@ -246,6 +247,7 @@ class ManufacturerController extends AbstractBaseController implements
                             )
                         );
                     }
+                    // END FORK ADDITION
 
                     if ($newTerm instanceof WP_Error) {
                         $error = new WP_Error('invalid_taxonomy', 'Could not create manufacturer.');
@@ -253,13 +255,16 @@ class ManufacturerController extends AbstractBaseController implements
                         $this->logger->error(ErrorFormatter::formatError($newTerm));
                     }
 
+                    // FORK ADDITION (PR #6): re-fetch by slug to recover after TypeError or WP_Error
                     // If wp_insert_term returned a WP_Term use it directly; otherwise
                     // re-fetch by slug (covers TypeError and WP_Error cases where the
                     // term may still have been persisted).
                     $term = ($newTerm instanceof \WP_Term)
                         ? $newTerm
                         : \get_term_by('slug', $name, $taxonomy);
+                    // END FORK ADDITION
                 } elseif ($term instanceof \WP_Term) {
+                    // FORK ADDITION (PR #6): wrap wp_update_term in try-catch for third-party plugin TypeError
                     try {
                         \wp_update_term($term->term_id, $taxonomy, [
                             'name' => $model->getName(),
@@ -275,6 +280,7 @@ class ManufacturerController extends AbstractBaseController implements
                             )
                         );
                     }
+                    // END FORK ADDITION
                 }
 
                 \add_filter('pre_term_description', 'wp_filter_kses');

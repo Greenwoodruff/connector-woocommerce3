@@ -1,9 +1,9 @@
 <?php //phpcs:ignore PSR1.Files.SideEffects.FoundWithSymbols
 
 /**
- * Plugin Name: JTL-Connector for WooCommerce
+ * Plugin Name: JTL-Connector for WooCommerce [Camplorer]
  * Description: Connect your woocommerce-shop with JTL-Wawi, the free multichannel-erp for mail order business.
- * Version: 2.4.1
+ * Version: 2.4.1.1
  * Requires PHP: 8.0
  * WC tested up to: 8.2
  * Author: JTL-Software GmbH
@@ -32,7 +32,9 @@ if (!defined('ABSPATH')) {
 
 require_once ABSPATH . '/wp-admin/includes/plugin.php';
 
+// FORK ADDITION (PR #3): graceful handling when vendor/autoload.php is missing (e.g. GitHub install without composer)
 $jtlwcc_autoload_missing = false;
+// END FORK ADDITION
 
 try {
     if (file_exists(JTLWCC_CONNECTOR_DIR . '/connector.phar')) {
@@ -43,6 +45,7 @@ try {
                 $loader->add('', JTLWCC_EXT_CONNECTOR_PLUGIN_DIR);
             }
         }
+    // FORK ADDITION (PR #3): added elseif + else instead of plain else to detect missing vendor/
     } elseif (file_exists(JTLWCC_CONNECTOR_DIR . '/vendor/autoload.php')) {
         $loader = require(JTLWCC_CONNECTOR_DIR . '/vendor/autoload.php');
         $loader->add('', JTLWCC_CONNECTOR_DIR . '/plugins');
@@ -52,10 +55,12 @@ try {
     } else {
         $jtlwcc_autoload_missing = true;
     }
+    // END FORK ADDITION
 } catch (\Exception $e) {
     //loader failed
 }
 
+// FORK ADDITION (PR #3): show admin notice instead of fatal error when vendor/ is missing
 if ($jtlwcc_autoload_missing) {
     add_action('admin_notices', 'jtlwcc_vendor_missing_notice');
     return;
@@ -76,6 +81,7 @@ function jtlwcc_vendor_missing_notice(): void
     echo '<a href="https://www.jtl-software.de" target="_blank">JTL-Software</a> herunterladen.</p>';
     echo '</div>';
 }
+// END FORK ADDITION
 
 
 add_action('before_woocommerce_init', function (): void {

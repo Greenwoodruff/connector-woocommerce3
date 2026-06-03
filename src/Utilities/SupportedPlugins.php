@@ -214,7 +214,9 @@ class SupportedPlugins
      */
     public static function isPerfectWooCommerceBrandsActive(): bool
     {
+        // FORK ADDITION (PR #2): PWB always treated as active; plugin is always installed
         return true;
+        // END FORK ADDITION
     }
 
     /**

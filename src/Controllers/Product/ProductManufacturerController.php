@@ -22,13 +22,14 @@ class ProductManufacturerController extends AbstractBaseController
         if (SupportedPlugins::isPerfectWooCommerceBrandsActive()) {
             $manufacturerId = $product->getManufacturerId()->getEndpoint();
 
-            // If endpoint ID is empty, try to look it up from the link table using host ID
+            // FORK ADDITION (PR #4): look up endpoint ID from link table when it's missing
             if ($manufacturerId === '') {
                 $hostId = $product->getManufacturerId()->getHost();
                 if ($hostId > 0) {
                     $manufacturerId = $this->getManufacturerEndpointId($hostId);
                 }
             }
+            // END FORK ADDITION
 
             $this->removeManufacturerTerm($productId);
 
@@ -45,9 +46,8 @@ class ProductManufacturerController extends AbstractBaseController
         }
     }
 
+    // FORK ADDITION (PR #4): helper to look up manufacturer endpoint ID from link table
     /**
-     * Look up the manufacturer endpoint ID from the link table using the host ID.
-     *
      * @param int $hostId
      * @return string
      */
@@ -62,6 +62,7 @@ class ProductManufacturerController extends AbstractBaseController
 
         return $endpointId !== null ? (string)$endpointId : '';
     }
+    // END FORK ADDITION
 
     /**
      * @param string $productId
