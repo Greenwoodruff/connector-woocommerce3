@@ -3,7 +3,7 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.1
-**Fork-Version:** 2.4.1.1 (4. Stelle = Fork-Revision)
+**Fork-Version:** 2.4.1.2 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
@@ -111,7 +111,7 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 
 | Datei | PR | Marker im Code |
 |---|---|---|
-| `src/Controllers/ProductController.php` | #1 | ⚠ kein Marker (Code wurde entfernt) |
+| `src/Controllers/ProductController.php` | #1, #9 | ⚠ #1: kein Marker (Code entfernt); #9: `FORK FIX (PR #9)` |
 | `src/Integrations/Plugins/PerfectWooCommerceBrands/PerfectWooCommerceBrands.php` | #2 | `FORK ADDITION (PR #2)` |
 | `src/Utilities/SupportedPlugins.php` | #2 | `FORK ADDITION (PR #2)` |
 | `woo-jtl-connector.php` | #3 | `FORK ADDITION (PR #3)` |
@@ -137,7 +137,8 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 | #5 | Individuelle Lieferzeit für Lagerware | `bd099bc` |
 | #6 | Manufacturer Push TypeError-Fix | `593dd17` |
 | #7 | Bestellungs-Sync Zeitzonenfehler Fix | `bbfb6e6` |
-| #8 | "Erscheint am" als Lieferzeit in WooCommerce | aktuell |
+| #8 | "Erscheint am" als Lieferzeit in WooCommerce | `1a9012c` |
+| #9 | Fix: Produkt-Status "geplant" wenn "Erscheint am" gesetzt | aktuell |
 
 ---
 
@@ -515,6 +516,7 @@ Die oben dokumentierten Code-Änderungen können manuell in die entsprechenden D
 10. `src/Utilities/Config.php` - Neue Optionen für "Erscheint am"
 11. `includes/JtlConnectorAdmin.php` - Admin-Felder für "Erscheint am"
 12. `src/Controllers/Product/ProductDeliveryTimeController.php` - "Erscheint am"-Logik
+13. `src/Controllers/ProductController.php` - FORK FIX (PR #9): post_status-Fix für "Erscheint am"
 
 ---
 
@@ -618,6 +620,58 @@ Alle Fork-Blöcke sind mit `// FORK ADDITION:` und `// END FORK ADDITION` markie
 git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php
 ```
 zeigt genau die Blöcke, die ggf. neu angewendet werden müssen.
+
+---
+
+## PR #9: Fix – Produkt wird auf "geplant" gesetzt wenn "Erscheint am" gesetzt ist
+
+**Commit:** aktuell
+**Zweck:** Behebt einen Fehler, durch den Produkte in WooCommerce auf den Status "geplant" (scheduled) gesetzt wurden, sobald das JTL-Feld "Erscheint am" einen Wert enthielt — selbst wenn die Option "Erscheint am" nur als Lieferzeit-Bezeichnung genutzt wird.
+
+### Ursache
+
+Im Upstream-Code wird `post_status` auf `'future'` gesetzt, sobald `getAvailableFrom()` nicht `null` ist:
+
+```php
+// UPSTREAM (fehlerhaft bei aktivem OPTIONS_CONSIDER_ERSCHEINT_AM_DATE):
+'post_status' => \is_null($model->getAvailableFrom())
+    ? ($model->getIsActive() ? 'publish' : 'draft')
+    : 'future',
+```
+
+WordPress interpretiert `'future'` als "geplant" und blendet das Produkt aus dem Shop aus. Wenn "Erscheint am" aber nur als Lieferzeit-Text dient (Option `OPTIONS_CONSIDER_ERSCHEINT_AM_DATE` aktiv), soll das Produkt weiterhin publiziert und bestellbar sein.
+
+### Betroffene Datei
+- `src/Controllers/ProductController.php`
+
+### Änderung im Detail
+
+```php
+// FORK FIX (PR #9): When "Erscheint am" is used only as a delivery time label
+// (OPTIONS_CONSIDER_ERSCHEINT_AM_DATE active), never set post_status to 'future' —
+// the product must remain published and orderable.
+'post_status' => (!\is_null($model->getAvailableFrom())
+    && $model->getAvailableFrom() > new DateTime()
+    && !Config::get(Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE, false))
+    ? 'future'
+    : ($model->getIsActive() ? 'publish' : 'draft'),
+// END FORK FIX
+```
+
+### Verhalten nach dem Fix
+
+| `OPTIONS_CONSIDER_ERSCHEINT_AM_DATE` | `availableFrom` | `post_status` |
+|---|---|---|
+| aktiv | beliebig | `publish` / `draft` (je nach `isActive`) |
+| inaktiv | in der Zukunft | `future` (WordPress-Standard) |
+| inaktiv | `null` oder vergangen | `publish` / `draft` |
+
+### Nach einem JTL-Upstream-Update
+
+Die geänderte Zeile ist mit `// FORK FIX (PR #9)` markiert. Nach einem Merge prüfen:
+```bash
+git diff upstream/master..HEAD -- src/Controllers/ProductController.php
+```
 
 ---
 

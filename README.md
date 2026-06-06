@@ -10,4 +10,4 @@ Connect your WooCommerce shop with JTL-Wawi, the free multichannel ERP for mail 
 
 - **Original-Plugin:** https://github.com/jtl-software/connector-woocommerce3
 - **Basis-Version:** 2.4.1
-- **Fork-Version:** 2.4.1.1
+- **Fork-Version:** 2.4.1.2

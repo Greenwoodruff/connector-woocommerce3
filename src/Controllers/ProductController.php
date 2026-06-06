@@ -343,9 +343,15 @@ class ProductController extends AbstractBaseController implements
                 'post_content' => $tmpI18n->getDescription(),
                 'post_excerpt' => $tmpI18n->getShortDescription(),
                 'post_date' => $this->getCreationDate($creationDate),
-                'post_status' => \is_null($model->getAvailableFrom())
-                    ? ($model->getIsActive() ? 'publish' : 'draft')
-                    : 'future',
+                // FORK FIX (PR #9): When "Erscheint am" is used only as a delivery time label
+                // (OPTIONS_CONSIDER_ERSCHEINT_AM_DATE active), never set post_status to 'future' —
+                // the product must remain published and orderable.
+                'post_status' => (!\is_null($model->getAvailableFrom())
+                    && $model->getAvailableFrom() > new DateTime()
+                    && !Config::get(Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE, false))
+                    ? 'future'
+                    : ($model->getIsActive() ? 'publish' : 'draft'),
+                // END FORK FIX
             ];
 
             if ($endpoint['ID'] !== 0) {
