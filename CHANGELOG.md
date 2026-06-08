@@ -8,6 +8,14 @@ This is the changelog of our "JTL WooCommerce Connector".
 - CO-3262 - update wpml plugin name
 - CO-3283 - remove db translation entries during product delete
 
+## Fork camplorer – Unreleased
+- Fix: Lieferzeit wird jetzt auch bei reinen Bestandsabgleichen (ProductStockLevel-Push) korrekt
+  aktualisiert. Bisher wurde die Lieferzeit nur beim vollständigen Artikelabgleich neu berechnet,
+  sodass z. B. "sofort lieferbar" stehen blieb, obwohl der Bestand durch ein gesperrtes Lager auf
+  0 gefallen war. Der vollständige Abgleich speichert nun `additionalHandlingTime` und
+  `supplierDeliveryTime` als WooCommerce Post Meta (`_jtl_additional_handling_time`,
+  `_jtl_supplier_delivery_time`), die der Bestandsabgleich anschließend zur Neuberechnung nutzt.
+
 ## 2.4.1 _2025-11-25_
 - CO-3254 - fix wrong price update in quick sync
 

@@ -9,6 +9,7 @@ use Exception;
 use Jtl\Connector\Core\Controller\PushInterface;
 use Jtl\Connector\Core\Model\AbstractModel;
 use Jtl\Connector\Core\Model\Product;
+use JtlWooCommerceConnector\Controllers\Product\ProductDeliveryTimeController;
 use JtlWooCommerceConnector\Integrations\Plugins\Wpml\WpmlProduct;
 use Psr\Log\InvalidArgumentException;
 
@@ -66,6 +67,25 @@ class ProductStockLevelController extends AbstractBaseController implements Push
 
                     \wc_delete_product_transients($wcProduct->get_id());
                 }
+            }
+
+            // Recalculate delivery time based on the new stock level.
+            // The full product push stores additionalHandlingTime and supplierDeliveryTime as
+            // post meta so we can reconstruct the right delivery time string here without
+            // needing the complete product model.
+            $mainWcProduct = \wc_get_product($productId);
+            if ($mainWcProduct !== false && $mainWcProduct !== null) {
+                $additionalHandlingTime = (int)\get_post_meta((int)$productId, '_jtl_additional_handling_time', true);
+                $supplierDeliveryTime   = (int)\get_post_meta((int)$productId, '_jtl_supplier_delivery_time', true);
+
+                $stockProduct = (new Product())
+                    ->setId($model->getId())
+                    ->setStockLevel($model->getStockLevel())
+                    ->setAdditionalHandlingTime($additionalHandlingTime)
+                    ->setSupplierDeliveryTime($supplierDeliveryTime);
+
+                (new ProductDeliveryTimeController($this->db, $this->util))
+                    ->pushData($stockProduct, $mainWcProduct);
             }
 
             $returnModels[] = $model;

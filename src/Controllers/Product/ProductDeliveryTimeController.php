@@ -23,6 +23,12 @@ class ProductDeliveryTimeController extends AbstractBaseController
     public function pushData(ProductModel $product, \WC_Product $wcProduct): void
     {
         $productId                          = $product->getId()->getEndpoint();
+
+        // Persist handling times so stock-level-only pushes can recalculate delivery time
+        // without the full product model being available.
+        \update_post_meta((int)$productId, '_jtl_additional_handling_time', $product->getAdditionalHandlingTime());
+        \update_post_meta((int)$productId, '_jtl_supplier_delivery_time', $product->getSupplierDeliveryTime());
+
         $time                               = $product->calculateHandlingTime();
         $germanizedDeliveryTimeTaxonomyName = 'product_delivery_time';
 
