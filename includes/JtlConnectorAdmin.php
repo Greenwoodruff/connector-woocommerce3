@@ -1373,6 +1373,40 @@ final class JtlConnectorAdmin //phpcs:ignore PSR1.Classes.ClassDeclaration.Missi
         ];
         // END FORK ADDITION
 
+        // FORK ADDITION: JTL supplier delivery time 999 => "auf Anfrage"
+        $fields[] = [
+            'title'     => __('Show "on request" for 999 days delivery time', JTLWCC_TEXT_DOMAIN),
+            'type'      => 'active_true_false_radio',
+            'desc'      => __(
+                'Enable to display a custom text (e.g. "auf Anfrage") instead of a calculated delivery ' .
+                'time when the JTL supplier delivery time is set to 999 days and the product is out of ' .
+                'stock. (Default: Enabled).',
+                JTLWCC_TEXT_DOMAIN
+            ),
+            'id'        => Config::OPTIONS_ON_REQUEST_DELIVERY_TIME,
+            'value'     => Config::get(
+                Config::OPTIONS_ON_REQUEST_DELIVERY_TIME,
+                Config::JTLWCC_CONFIG_DEFAULTS[Config::OPTIONS_ON_REQUEST_DELIVERY_TIME]
+            ),
+            'trueText'  => __('Enabled', JTLWCC_TEXT_DOMAIN),
+            'falseText' => __('Disabled', JTLWCC_TEXT_DOMAIN),
+        ];
+
+        $fields[] = [
+            'title'     => __('Text for "on request" delivery time', JTLWCC_TEXT_DOMAIN),
+            'type'      => 'jtl_text_input',
+            'id'        => Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT,
+            'value'     => Config::get(
+                Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT,
+                Config::JTLWCC_CONFIG_DEFAULTS[Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT]
+            ),
+            'helpBlock' => __(
+                'Text shown when the JTL supplier delivery time is 999 days (e.g. "auf Anfrage").',
+                JTLWCC_TEXT_DOMAIN
+            ),
+        ];
+        // END FORK ADDITION
+
         //Add sectionend
         $fields[] = [
             'type' => 'sectionend',

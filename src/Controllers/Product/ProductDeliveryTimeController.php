@@ -14,6 +14,10 @@ use WP_Error;
 
 class ProductDeliveryTimeController extends AbstractBaseController
 {
+    // FORK ADDITION: JTL sentinel value for the supplier delivery time meaning "on request"
+    // ("auf Anfrage") instead of a real number of days. Hard-wired on purpose (JTL convention).
+    private const ON_REQUEST_SUPPLIER_DELIVERY_TIME = 999;
+
     /**
      * @param ProductModel $product
      * @param \WC_Product  $wcProduct
@@ -61,6 +65,9 @@ class ProductDeliveryTimeController extends AbstractBaseController
                 }
             }
 
+            // FORK ADDITION: track whether a concrete inflow date replaced the calculated time,
+            // so the "auf Anfrage" sentinel below does not override a real inflow-based delivery time.
+            $inflowDateApplied = false;
             if (Config::get(Config::OPTIONS_CONSIDER_SUPPLIER_INFLOW_DATE, false)) {
                 if (
                     $product->getStockLevel() <= 0
@@ -69,7 +76,8 @@ class ProductDeliveryTimeController extends AbstractBaseController
                     $inflow = new \DateTime($product->getNextAvailableInflowDate()->format('Y-m-d'));
                     $today  = new \DateTime((new \DateTime())->format('Y-m-d'));
                     if ($inflow->getTimestamp() - $today->getTimestamp() > 0) {
-                        $time = $product->getAdditionalHandlingTime() + (int)$inflow->diff($today)->days;
+                        $time              = $product->getAdditionalHandlingTime() + (int)$inflow->diff($today)->days;
+                        $inflowDateApplied = true;
                     }
                 }
             }
@@ -97,6 +105,23 @@ class ProductDeliveryTimeController extends AbstractBaseController
             //Build Term string - use custom in-stock delivery time if configured and product is in stock
             if ($useInStockDeliveryTime) {
                 $deliveryTimeString = \trim($inStockDeliveryTime);
+            } elseif (
+                // FORK ADDITION: JTL supplier delivery time of 999 days is a sentinel meaning
+                // "on request" ("auf Anfrage"). Show the configured text instead of a day count.
+                // Only relevant when out of stock (supplier delivery time only feeds the
+                // calculation then) and when no concrete inflow date already applied.
+                !$inflowDateApplied
+                && Config::get(Config::OPTIONS_ON_REQUEST_DELIVERY_TIME, true)
+                && $product->getStockLevel() <= 0
+                && $product->getSupplierDeliveryTime() === self::ON_REQUEST_SUPPLIER_DELIVERY_TIME
+            ) {
+                /** @var string $onRequestText */
+                $onRequestText      = Config::get(Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT, 'auf Anfrage');
+                $onRequestText      = \trim($onRequestText);
+                // Fall back to a sensible default if the configured text was saved empty,
+                // so we never create an empty delivery time term.
+                $deliveryTimeString = $onRequestText !== '' ? $onRequestText : 'auf Anfrage';
+                // END FORK ADDITION
             } else {
                 $deliveryTimeString = \trim(
                     \sprintf(
