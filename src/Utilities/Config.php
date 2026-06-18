@@ -46,6 +46,10 @@ class Config
         OPTIONS_CONSIDER_ERSCHEINT_AM_DATE               = 'jtlconnector_consider_erscheint_am_date',
         OPTIONS_ERSCHEINT_AM_PREFIX                      = 'jtlconnector_erscheint_am_prefix',
         // END FORK ADDITION
+        // FORK ADDITION: JTL supplier delivery time 999 => "auf Anfrage"
+        OPTIONS_ON_REQUEST_DELIVERY_TIME                 = 'jtlconnector_on_request_delivery_time',
+        OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT            = 'jtlconnector_on_request_delivery_time_text',
+        // END FORK ADDITION
         OPTIONS_CUSTOM_CHECKOUT_FIELDS                   = 'jtlconnector_custom_checkout_fields',
         OPTIONS_LIMIT_CUSTOMER_QUERY_TYPE                = 'jtlconnector_limit_customer_query',
         OPTIONS_FEATURES_JSON                            = 'jtlconnector_features_json',
@@ -71,6 +75,10 @@ class Config
         // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
         Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE => false,
         Config::OPTIONS_ERSCHEINT_AM_PREFIX        => 'Lieferbar ab',
+        // END FORK ADDITION
+        // FORK ADDITION: JTL supplier delivery time 999 => "auf Anfrage"
+        Config::OPTIONS_ON_REQUEST_DELIVERY_TIME      => true,
+        Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT => 'auf Anfrage',
         // END FORK ADDITION
         //PAGE
         Config::OPTIONS_COMPLETED_ORDERS => true,
@@ -120,6 +128,10 @@ class Config
         // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
         Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE => 'bool',
         Config::OPTIONS_ERSCHEINT_AM_PREFIX        => 'string',
+        // END FORK ADDITION
+        // FORK ADDITION: JTL supplier delivery time 999 => "auf Anfrage"
+        Config::OPTIONS_ON_REQUEST_DELIVERY_TIME      => 'bool',
+        Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT => 'string',
         // END FORK ADDITION
         //PAGE
         Config::OPTIONS_COMPLETED_ORDERS => 'bool',

@@ -3,7 +3,7 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.1
-**Fork-Version:** 2.4.1.2 (4. Stelle = Fork-Revision)
+**Fork-Version:** 2.4.1.4 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
@@ -139,6 +139,7 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 | #7 | Bestellungs-Sync Zeitzonenfehler Fix | `bbfb6e6` |
 | #8 | "Erscheint am" als Lieferzeit in WooCommerce | `1a9012c` |
 | #9 | Fix: Produkt-Status "geplant" wenn "Erscheint am" gesetzt | aktuell |
+| #10 | Lieferzeit 999 → "auf Anfrage" | aktuell |
 
 ---
 
@@ -671,6 +672,70 @@ WordPress interpretiert `'future'` als "geplant" und blendet das Produkt aus dem
 Die geänderte Zeile ist mit `// FORK FIX (PR #9)` markiert. Nach einem Merge prüfen:
 ```bash
 git diff upstream/master..HEAD -- src/Controllers/ProductController.php
+```
+
+---
+
+## PR #10: Lieferzeit "auf Anfrage" bei JTL-Lieferzeit 999
+
+**Commit:** aktuell
+**Zweck:** Wenn die Lieferanten-Lieferzeit in JTL auf **999 Tage** gesetzt ist, wird im Shop nicht "ca. 999 Werktage" o. ä. berechnet, sondern ein konfigurierbarer Text (Standard: **"auf Anfrage"**) angezeigt. 999 ist in JTL ein üblicher Platzhalterwert für "Lieferzeit unbestimmt / auf Anfrage".
+
+### Hintergrund
+
+`Product::calculateHandlingTime()` addiert die Lieferanten-Lieferzeit (`supplierDeliveryTime`) nur dann, wenn der Bestand ≤ 0 ist. Bei einem Wert von 999 ergäbe das eine sinnlose Tageszahl. Geprüft wird daher direkt der JTL-Quellwert `getSupplierDeliveryTime()` (nicht das bereits verrechnete `$time`), damit Offset- oder Zulauf-Berechnungen die 999 nicht verfälschen.
+
+Der Wert 999 ist bewusst **fest verdrahtet** (JTL-Konvention); nur der Anzeigetext ist konfigurierbar.
+
+### Betroffene Dateien
+- `src/Utilities/Config.php` — zwei neue Optionen
+- `includes/JtlConnectorAdmin.php` — zwei Admin-Felder (Schalter + Text)
+- `src/Controllers/Product/ProductDeliveryTimeController.php` — Logik
+
+Greift automatisch auch beim reinen Bestandsabgleich, da `ProductStockLevelController` denselben `ProductDeliveryTimeController::pushData()` aufruft.
+
+### Neue Optionen (Config.php)
+
+```php
+// FORK ADDITION: JTL supplier delivery time 999 => "auf Anfrage"
+OPTIONS_ON_REQUEST_DELIVERY_TIME      = 'jtlconnector_on_request_delivery_time',       // bool,   Default: true
+OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT = 'jtlconnector_on_request_delivery_time_text',  // string, Default: 'auf Anfrage'
+// END FORK ADDITION
+```
+
+### Logik (ProductDeliveryTimeController.php)
+
+```php
+private const ON_REQUEST_SUPPLIER_DELIVERY_TIME = 999;
+
+// ... beim Bau des Lieferzeit-Strings (nach dem In-Stock-Zweig):
+} elseif (
+    !$inflowDateApplied
+    && Config::get(Config::OPTIONS_ON_REQUEST_DELIVERY_TIME, true)
+    && $product->getStockLevel() <= 0
+    && $product->getSupplierDeliveryTime() === self::ON_REQUEST_SUPPLIER_DELIVERY_TIME
+) {
+    $onRequestText      = Config::get(Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT, 'auf Anfrage');
+    $deliveryTimeString = \trim($onRequestText);
+}
+```
+
+### Priorität der Lieferzeitbestimmung (nach diesem Change)
+
+1. Artikel auf Lager (stock > 0) + Custom In-Stock-Text konfiguriert → Custom-Text
+2. Artikel auf Lager → normale Tage-Berechnung
+3. Nicht auf Lager + "Erscheint am" in Zukunft + Option aktiv → "Lieferbar ab TT.MM.YYYY"
+4. Nicht auf Lager + Lieferantenzugang bekannt + Option aktiv → Tage-Berechnung aus Lieferantenbestellung
+5. **Nicht auf Lager + Lieferanten-Lieferzeit = 999 + Option aktiv → "auf Anfrage"**
+6. Sonst → Standardberechnung (Tage-bis-Versand)
+
+> "Erscheint am" (3) und ein konkreter Lieferantenzugang (4) haben Vorrang vor "auf Anfrage" — ein konkretes Datum bzw. ein realer Tagewert ist aussagekräftiger. Der Zulauf-Vorrang wird über das Flag `$inflowDateApplied` sichergestellt.
+
+### Nach einem JTL-Upstream-Update
+
+Alle Blöcke sind mit `// FORK ADDITION:` markiert. Nach einem Merge prüfen:
+```bash
+git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php src/Utilities/Config.php includes/JtlConnectorAdmin.php
 ```
 
 ---
