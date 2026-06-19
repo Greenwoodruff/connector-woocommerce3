@@ -3,7 +3,7 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.1
-**Fork-Version:** 2.4.1.4 (4. Stelle = Fork-Revision)
+**Fork-Version:** 2.4.1.5 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
@@ -140,6 +140,7 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 | #8 | "Erscheint am" als Lieferzeit in WooCommerce | `1a9012c` |
 | #9 | Fix: Produkt-Status "geplant" wenn "Erscheint am" gesetzt | aktuell |
 | #10 | Lieferzeit 999 → "auf Anfrage" | aktuell |
+| #11 | Varianten: Hauptprodukt = kürzeste Lieferzeit + Bestandsabgleich-Fix | aktuell |
 
 ---
 
@@ -736,6 +737,52 @@ private const ON_REQUEST_SUPPLIER_DELIVERY_TIME = 999;
 Alle Blöcke sind mit `// FORK ADDITION:` markiert. Nach einem Merge prüfen:
 ```bash
 git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php src/Utilities/Config.php includes/JtlConnectorAdmin.php
+```
+
+---
+
+## PR #11: Varianten – Hauptprodukt zeigt kürzeste Lieferzeit + Bestandsabgleich-Fix
+
+**Commit:** aktuell
+**Zweck:** Korrigiert die Lieferzeit-Anzeige bei variablen Produkten (Varianten) im Zusammenspiel mit der "auf Anfrage"-Logik (PR #10).
+
+### Problem
+
+Beispiel: Variante A = 999 (auf Anfrage, nicht auf Lager), Variante B = 999 mit Zulaufdatum in ~9 Tagen.
+1. Das **Hauptprodukt** (vor der Variantenauswahl) zeigte seinen eigenen Master-Wert (999 → "auf Anfrage") statt einer Varianten-Lieferzeit.
+2. Variante **B kippte zurück auf "auf Anfrage"**: Beim reinen Bestandsabgleich wird das Produkt nur aus Post-Meta rekonstruiert — das Zulaufdatum fehlte dort, also griff der 999-Sentinel.
+
+### Lösung
+
+**1. Hauptprodukt = kürzeste Varianten-Lieferzeit:**
+- `pushData()` speichert je Produkt `_jtl_delivery_time_days` (sortierbar: in-Lager `0`, "auf Anfrage" `99999`, sonst Tageszahl) und `_jtl_delivery_time_string`.
+- Neue Methode `aggregateMasterDeliveryTime()` setzt im Finish-Hook (`Util::syncMasterProducts`, nach `WC_Product_Variable::sync`) die kürzeste Varianten-Lieferzeit aufs Hauptprodukt.
+- Die Term-Zuweisung wurde nach `assignDeliveryTimeTerm()` ausgelagert (von `pushData()` und der Aggregation gemeinsam genutzt).
+
+**2. Bestandsabgleich behält das Zulaufdatum:**
+- `pushData()` persistiert zusätzlich `_jtl_next_available_inflow_date` und `_jtl_available_from`.
+- `ProductStockLevelController` (Bestandsabgleich) stellt beide Daten auf dem rekonstruierten Produkt wieder her → gleiche Lieferzeit wie beim vollen Sync.
+
+### Betroffene Dateien
+- `src/Controllers/Product/ProductDeliveryTimeController.php` — Sort-Meta, `assignDeliveryTimeTerm()`, `aggregateMasterDeliveryTime()`, Datums-Persistenz
+- `src/Utilities/Util.php` — Aggregations-Aufruf im Finish-Hook
+- `src/Controllers/ProductStockLevelController.php` — Zulauf-/Erscheint-am-Datum wiederherstellen
+
+### Priorität pro Variante (unverändert zu PR #10, Reihenfolge)
+1. auf Lager + In-Stock-Text → Custom-Text (sort 0)
+2. "Erscheint am" in Zukunft → Datum
+3. Zulaufdatum bekannt → Tage-Berechnung aus Zulauf
+4. Lieferanten-Lieferzeit = 999 → "auf Anfrage" (sort 99999)
+5. sonst → Standardberechnung
+
+Das Hauptprodukt übernimmt anschließend die Variante mit dem kleinsten Sort-Wert.
+
+### Grenze
+Das Hauptprodukt aggregiert beim **vollen** Produkt-Sync. Ändert sich die kürzeste Variante nur durch einen reinen Bestandsabgleich, aktualisiert sich der Eltern-Wert erst beim nächsten vollen Sync (die Variante selbst bleibt korrekt).
+
+### Nach einem JTL-Upstream-Update
+```bash
+git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php src/Utilities/Util.php src/Controllers/ProductStockLevelController.php
 ```
 
 ---

@@ -77,12 +77,25 @@ class ProductStockLevelController extends AbstractBaseController implements Push
             if ($mainWcProduct !== false && $mainWcProduct !== null) {
                 $additionalHandlingTime = (int)\get_post_meta((int)$productId, '_jtl_additional_handling_time', true);
                 $supplierDeliveryTime   = (int)\get_post_meta((int)$productId, '_jtl_supplier_delivery_time', true);
+                // FORK ADDITION: restore inflow / "Erscheint am" dates so a pure stock sync reproduces
+                // the same delivery time as a full sync (e.g. keeps an inflow-based "9 days" instead of
+                // falling back to "auf Anfrage" because the date is missing from the stock model).
+                $inflowDateMeta    = (string)\get_post_meta((int)$productId, '_jtl_next_available_inflow_date', true);
+                $availableFromMeta = (string)\get_post_meta((int)$productId, '_jtl_available_from', true);
 
                 $stockProduct = (new Product())
                     ->setId($model->getId())
                     ->setStockLevel($model->getStockLevel())
                     ->setAdditionalHandlingTime($additionalHandlingTime)
                     ->setSupplierDeliveryTime($supplierDeliveryTime);
+
+                if ($inflowDateMeta !== '') {
+                    $stockProduct->setNextAvailableInflowDate(new \DateTime($inflowDateMeta));
+                }
+                if ($availableFromMeta !== '') {
+                    $stockProduct->setAvailableFrom(new \DateTime($availableFromMeta));
+                }
+                // END FORK ADDITION
 
                 (new ProductDeliveryTimeController($this->db, $this->util))
                     ->pushData($stockProduct, $mainWcProduct);

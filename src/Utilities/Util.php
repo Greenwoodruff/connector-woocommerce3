@@ -12,6 +12,7 @@ use Jtl\Connector\Core\Model\TranslatableAttribute;
 use Jtl\Connector\Core\Model\TranslatableAttributeI18n;
 use JtlWooCommerceConnector\Controllers\CustomerOrderController;
 use JtlWooCommerceConnector\Controllers\GlobalData\CustomerGroupController;
+use JtlWooCommerceConnector\Controllers\Product\ProductDeliveryTimeController;
 use WhiteCube\Lingua\Service;
 
 /**
@@ -305,8 +306,12 @@ class Util extends WordpressUtils
                 }
 
                 if (! empty($masterProductsToSync)) {
+                    // FORK ADDITION: after WooCommerce re-syncs the variable product, set the parent's
+                    // delivery time to the shortest of its variations (shown before a variant is chosen).
+                    $deliveryTimeController = new ProductDeliveryTimeController($this->db, $this);
                     foreach ($masterProductsToSync as $productId) {
                         \WC_Product_Variable::sync((int)$productId);
+                        $deliveryTimeController->aggregateMasterDeliveryTime((int)$productId);
                     }
 
                     \delete_option(self::TO_SYNC . '_' . $page);
