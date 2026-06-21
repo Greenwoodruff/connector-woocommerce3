@@ -341,8 +341,9 @@ class ProductDeliveryTimeController extends AbstractBaseController
     /**
      * FORK ADDITION: Set a variable parent product's delivery time to the SHORTEST delivery time
      * among its variations, so the pre-selection display reflects the fastest available variant.
-     * Reads the per-variation meta written by pushData() and is called from the finish hook
-     * (Util::syncMasterProducts) after all products of a sync run have been pushed.
+     * Reads the per-variation meta written by pushData(). Called from ProductController after the
+     * master and after each variation push (the upstream Util::syncMasterProducts finish hook never
+     * runs because its counter option is never incremented), and from the stock-level push.
      *
      * @param int $masterProductId
      * @return void

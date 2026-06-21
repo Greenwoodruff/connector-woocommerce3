@@ -767,6 +767,14 @@ class ProductController extends AbstractBaseController implements
 
         (new \JtlWooCommerceConnector\Controllers\Product\ProductStockLevelController($this->db, $this->util))
             ->pushDataChild($product);
+
+        // FORK ADDITION (PR #11): re-aggregate the parent's delivery time from all its variations,
+        // so the master shows the shortest variant delivery time (upstream finish hook is a no-op).
+        $masterId = (int)$product->getMasterProductId()->getEndpoint();
+        if ($masterId > 0) {
+            (new ProductDeliveryTimeController($this->db, $this->util))
+                ->aggregateMasterDeliveryTime($masterId);
+        }
     }
 
     /**
@@ -786,6 +794,11 @@ class ProductController extends AbstractBaseController implements
 
         if ($product->getIsMasterProduct()) {
             $this->util->addMasterProductToSync($productId);
+            // FORK ADDITION (PR #11): aggregate the parent's delivery time from its variations here.
+            // The upstream finish hook (Util::syncMasterProducts) never runs because its counter option
+            // is never incremented, so we trigger it directly. Re-runs on each variation push below.
+            (new ProductDeliveryTimeController($this->db, $this->util))
+                ->aggregateMasterDeliveryTime((int)$productId);
         }
 
         self::$idCache[$product->getId()->getHost()] = $productId;

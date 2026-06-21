@@ -25,6 +25,9 @@ class ProductStockLevelController extends AbstractBaseController implements Push
     public function push(AbstractModel ...$models): array
     {
         $returnModels = [];
+        // FORK ADDITION (PR #11): collect variable parents of stock-synced variations so their
+        // delivery time (shortest variant) is re-aggregated after all stock changes are processed.
+        $parentIdsToAggregate = [];
 
         foreach ($models as $model) {
             /** @var Product $model */
@@ -99,10 +102,27 @@ class ProductStockLevelController extends AbstractBaseController implements Push
 
                 (new ProductDeliveryTimeController($this->db, $this->util))
                     ->pushData($stockProduct, $mainWcProduct);
+
+                // FORK ADDITION (PR #11): note the variable parent so its delivery time gets
+                // re-aggregated (shortest variant) once all stock changes are processed.
+                $parentId = (int)$mainWcProduct->get_parent_id();
+                if ($parentId > 0) {
+                    $parentIdsToAggregate[$parentId] = $parentId;
+                }
+                // END FORK ADDITION
             }
 
             $returnModels[] = $model;
         }
+
+        // FORK ADDITION (PR #11): re-aggregate parent delivery times after all stock changes.
+        if (!empty($parentIdsToAggregate)) {
+            $deliveryTimeController = new ProductDeliveryTimeController($this->db, $this->util);
+            foreach ($parentIdsToAggregate as $parentId) {
+                $deliveryTimeController->aggregateMasterDeliveryTime($parentId);
+            }
+        }
+
         return $returnModels;
     }
 }

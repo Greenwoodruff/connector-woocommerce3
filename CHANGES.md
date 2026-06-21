@@ -756,17 +756,18 @@ Beispiel: Variante A = 999 (auf Anfrage, nicht auf Lager), Variante B = 999 mit 
 
 **1. Hauptprodukt = kürzeste Varianten-Lieferzeit:**
 - `pushData()` speichert je Produkt `_jtl_delivery_time_days` (sortierbar: in-Lager `0`, "auf Anfrage" `99999`, sonst Tageszahl) und `_jtl_delivery_time_string`.
-- Neue Methode `aggregateMasterDeliveryTime()` setzt im Finish-Hook (`Util::syncMasterProducts`, nach `WC_Product_Variable::sync`) die kürzeste Varianten-Lieferzeit aufs Hauptprodukt.
+- Neue Methode `aggregateMasterDeliveryTime()` ermittelt aus den Varianten-Metas die kürzeste Lieferzeit und setzt sie aufs Hauptprodukt.
+- **Wichtig:** Der naheliegende Finish-Hook `Util::syncMasterProducts()` ist toter Code — sein Zähler `TO_SYNC_COUNT` wird nie erhöht, daher läuft er nie. Die Aggregation wird deshalb direkt in den Push-Pfaden ausgelöst: in `ProductController` beim Master-Push **und nach jedem Varianten-Push** (sowie beim Bestandsabgleich). So enthält das Hauptprodukt nach dem letzten Varianten-Push den korrekten kürzesten Wert.
 - Die Term-Zuweisung wurde nach `assignDeliveryTimeTerm()` ausgelagert (von `pushData()` und der Aggregation gemeinsam genutzt).
 
 **2. Bestandsabgleich behält das Zulaufdatum:**
 - `pushData()` persistiert zusätzlich `_jtl_next_available_inflow_date` und `_jtl_available_from`.
-- `ProductStockLevelController` (Bestandsabgleich) stellt beide Daten auf dem rekonstruierten Produkt wieder her → gleiche Lieferzeit wie beim vollen Sync.
+- `ProductStockLevelController` (Bestandsabgleich) stellt beide Daten auf dem rekonstruierten Produkt wieder her → gleiche Lieferzeit wie beim vollen Sync, und aggregiert betroffene Hauptprodukte erneut.
 
 ### Betroffene Dateien
 - `src/Controllers/Product/ProductDeliveryTimeController.php` — Sort-Meta, `assignDeliveryTimeTerm()`, `aggregateMasterDeliveryTime()`, Datums-Persistenz
-- `src/Utilities/Util.php` — Aggregations-Aufruf im Finish-Hook
-- `src/Controllers/ProductStockLevelController.php` — Zulauf-/Erscheint-am-Datum wiederherstellen
+- `src/Controllers/ProductController.php` — Aggregations-Aufruf beim Master- und Varianten-Push
+- `src/Controllers/ProductStockLevelController.php` — Zulauf-/Erscheint-am-Datum wiederherstellen + Eltern-Aggregation
 
 ### Priorität pro Variante (unverändert zu PR #10, Reihenfolge)
 1. auf Lager + In-Stock-Text → Custom-Text (sort 0)
