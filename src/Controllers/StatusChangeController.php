@@ -10,17 +10,24 @@ use Jtl\Connector\Core\Model\AbstractModel;
 use Jtl\Connector\Core\Model\CustomerOrder;
 use Jtl\Connector\Core\Model\Identity;
 use Jtl\Connector\Core\Model\StatusChange as StatusChangeModel;
+use JtlWooCommerceConnector\Utilities\LinkTableNames;
+use Mockery\Exception;
+use PHPUnit\Framework\ExpectationFailedException;
 use Psr\Log\InvalidArgumentException;
+use ReflectionException;
+use WC_Data_Exception;
 use WC_Order;
 
 class StatusChangeController extends AbstractBaseController implements PushInterface
 {
     /**
      * @param AbstractModel ...$models
-     * @return StatusChangeModel[]
-     * @throws \InvalidArgumentException
-     * @throws ContainerException
-     * @throws \WC_Data_Exception
+     * @return array|AbstractModel[]
+     * @throws InvalidArgumentException
+     * @throws ExpectationFailedException
+     * @throws ReflectionException
+     * @throws WC_Data_Exception
+     * @throws Exception
      */
     public function push(AbstractModel ...$models): array
     {
@@ -63,7 +70,7 @@ class StatusChangeController extends AbstractBaseController implements PushInter
     protected function linkIfPaymentIsNotLinked(StatusChangeModel $statusChange): void
     {
         global $wpdb;
-        $jclp            = $wpdb->prefix . 'jtl_connector_link_payment';
+        $jclp            = $wpdb->prefix . LinkTableNames::PAYMENT;
         $customerOrderId = $statusChange->getCustomerOrderId();
         $endpointId      = $customerOrderId instanceof Identity ? $customerOrderId->getEndpoint() : "0";
 

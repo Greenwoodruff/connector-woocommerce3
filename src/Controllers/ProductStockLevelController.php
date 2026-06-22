@@ -11,6 +11,7 @@ use Jtl\Connector\Core\Model\AbstractModel;
 use Jtl\Connector\Core\Model\Product;
 use JtlWooCommerceConnector\Controllers\Product\ProductDeliveryTimeController;
 use JtlWooCommerceConnector\Integrations\Plugins\Wpml\WpmlProduct;
+use PHPUnit\Framework\ExpectationFailedException;
 use Psr\Log\InvalidArgumentException;
 
 class ProductStockLevelController extends AbstractBaseController implements PushInterface
@@ -18,9 +19,10 @@ class ProductStockLevelController extends AbstractBaseController implements Push
     /**
      * @param AbstractModel ...$models
      * @return AbstractModel[]
-     * @throws ContainerException
      * @throws \InvalidArgumentException
      * @throws \WP_Exception
+     * @throws ExpectationFailedException
+     * @throws Exception
      */
     public function push(AbstractModel ...$models): array
     {
