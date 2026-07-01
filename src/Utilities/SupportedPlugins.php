@@ -8,7 +8,7 @@ class SupportedPlugins
 {
     //THEMESPECIALS
 
-    public const
+    public const string
         //Compatible
         PLUGIN_B2B_MARKET                                   = 'B2B Market',
         PLUGIN_GERMAN_MARKET                                = 'German Market',
@@ -35,7 +35,8 @@ class SupportedPlugins
         PLUGIN_WPML_MULTILINGUAL_CMS                        = 'WPML Multilingual CMS',
         PLUGIN_WPML_STRING_TRANSLATION                      = 'WPML String Translation',
         PLUGIN_WPML_MEDIA_TRANSLATION                       = 'WPML Media Translation',
-        PLUGIN_WOOCOMMERCE_MULTILUNGUAL                     = 'WPML Multilingual & Multicurrency for WooCommerce',
+        PLUGIN_WOOCOMMERCE_MULTILUNGUAL                     = 'WooCommerce Multilingual & Multicurrency',
+        PLUGIN_MULTILINGUAL_FOR_WOOCOMMERCE                 = 'WPML Multilingual & Multicurrency for WooCommerce',
         PLUGIN_WPC_PRODUCT_QUANTITY_FOR_WOOCOMMERCE         = 'WPC Product Quantity for WooCommerce',
         PLUGIN_WPC_PRODUCT_QUANTITY_FOR_WOOCOMMERCE_PREMIUM = 'WPC Product Quantity for WooCommerce (Premium)',
         PLUGIN_ADDITIONAL_VARIATION_IMAGES_GALLERY_FOR_WOO  = 'Additional Variation Images Gallery for WooCommerce',
@@ -55,7 +56,7 @@ class SupportedPlugins
         PLUGIN_BACKWPUP                  = 'BackWPup';
 
     //arrays
-    public const SUPPORTED_PLUGINS = [
+    public const array SUPPORTED_PLUGINS = [
         self::PLUGIN_PERFECT_WOO_BRANDS,
         self::PLUGIN_PERFECT_BRANDS_FOR_WOOCOMMERCE,
         self::PLUGIN_PERFECT_BRANDS_WOOCOMMERCE,
@@ -90,7 +91,7 @@ class SupportedPlugins
         self::PLUGIN_ADVANCED_CUSTOM_FIELDS,
     ];
 
-    public const INCOMPATIBLE_PLUGINS = [
+    public const array INCOMPATIBLE_PLUGINS = [
         self::PLUGIN_ANTISPAM_BEE,
         self::PLUGIN_CERBER_SECURITY,
         self::PLUGIN_WORDFENCE,
