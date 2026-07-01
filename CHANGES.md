@@ -3,7 +3,7 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.2
-**Fork-Version:** 2.4.2.0 (4. Stelle = Fork-Revision)
+**Fork-Version:** 2.4.2.01 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
@@ -118,7 +118,7 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 | `src/Controllers/Product/ProductManufacturerController.php` | #4 | `FORK ADDITION (PR #4)` |
 | `src/Utilities/Config.php` | #5, #8 | `FORK ADDITION` |
 | `includes/JtlConnectorAdmin.php` | #5, #8 | `FORK ADDITION` |
-| `src/Controllers/Product/ProductDeliveryTimeController.php` | #5, #8 | `FORK ADDITION` |
+| `src/Controllers/Product/ProductDeliveryTimeController.php` | #5, #8, #10, #11, #12 | `FORK ADDITION` |
 | `src/Controllers/ManufacturerController.php` | #6 | `FORK ADDITION (PR #6)` |
 | `src/Utilities/SqlTraits/CustomerOrderTrait.php` | #7 | `FORK FIX (PR #7)` |
 
@@ -127,6 +127,13 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 ---
 
 ## Merge-Historie
+
+### Fork-Revision 2.4.2.01 (Juli 2026)
+
+Erste funktionale Fork-Revision auf Basis des 2.4.2-Merges.
+
+- **PR #12:** Ist im JTL für einen (nicht auf Lager befindlichen) Artikel **keine Lieferzeit** hinterlegt, zeigt der Shop jetzt den konfigurierten Text **"auf Anfrage"** statt einer „0-Tage"-Lieferzeit — analog zum 999-Sentinel aus PR #10.
+- Fork-Version auf **2.4.2.01** angehoben (in `build-config.yaml`, `woo-jtl-connector.php`, `readme.txt`, `README.md`, `CHANGES.md`).
 
 ### Upstream 2.4.2 (Juli 2026)
 
@@ -158,6 +165,7 @@ Merge von `upstream/master` (Tag `2.4.2`) in den Fork über den Integrationsbran
 | #9 | Fix: Produkt-Status "geplant" wenn "Erscheint am" gesetzt | aktuell |
 | #10 | Lieferzeit 999 → "auf Anfrage" | aktuell |
 | #11 | Varianten: Hauptprodukt = kürzeste Lieferzeit + Bestandsabgleich-Fix | aktuell |
+| #12 | Keine JTL-Lieferzeit → "auf Anfrage" | aktuell |
 
 ---
 
@@ -801,6 +809,58 @@ Das Hauptprodukt aggregiert beim **vollen** Produkt-Sync. Ändert sich die kürz
 ### Nach einem JTL-Upstream-Update
 ```bash
 git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php src/Utilities/Util.php src/Controllers/ProductStockLevelController.php
+```
+
+---
+
+## PR #12: Keine JTL-Lieferzeit → "auf Anfrage"
+
+**Commit:** aktuell
+**Zweck:** Ist im JTL für einen Artikel **keine Lieferzeit** hinterlegt (Bearbeitungszeit 0 **und** Lieferanten-Lieferzeit 0), zeigte der Shop bisher eine sinnlose „0-Tage"-Lieferzeit (z. B. „Lieferzeit 0 Werktage"). Jetzt wird — analog zum 999-Sentinel aus PR #10 — der konfigurierte Text **"auf Anfrage"** ausgegeben, sofern der Artikel **nicht auf Lager** ist.
+
+### Hintergrund
+
+`Product::calculateHandlingTime()` liefert bei fehlender Lieferzeit `0`. Der 999-Zweig aus PR #10 griff hier nicht (`getSupplierDeliveryTime() !== 999`), also landete der Code im Standard-Zweig und baute den String `"<Präfix> 0 <Suffix>"`. PR #12 behandelt „keine Lieferzeit" (berechnete Zeit `0`, out of stock) als weiteren „auf Anfrage"-Auslöser.
+
+### Umsetzung
+
+Die „auf Anfrage"-Entscheidung wurde in die testbare Methode `shouldShowOnRequest()` ausgelagert. Sie greift bei **out of stock**, wenn entweder der 999-Sentinel gesetzt ist **oder** die berechnete Handling-Zeit `0` ist. Ein konkretes Zulaufdatum (`$inflowDateApplied`) hat weiterhin Vorrang.
+
+```php
+protected function shouldShowOnRequest(
+    ProductModel $product,
+    int $handlingTime,
+    bool $inflowDateApplied
+): bool {
+    return !$inflowDateApplied
+        && (bool)Config::get(Config::OPTIONS_ON_REQUEST_DELIVERY_TIME, true)
+        && $product->getStockLevel() <= 0
+        && (
+            $product->getSupplierDeliveryTime() === self::ON_REQUEST_SUPPLIER_DELIVERY_TIME
+            || $handlingTime === 0
+        );
+}
+```
+
+Zusätzlich wird der „Zero-Delivery-Time ausblenden"-Early-Return (`OPTIONS_DISABLED_ZERO_DELIVERY_TIME`) übersprungen, wenn „auf Anfrage" angezeigt werden soll (`&& !$showOnRequest`), damit die Anzeige nicht vorher geleert wird.
+
+### Betroffene Dateien
+- `src/Controllers/Product/ProductDeliveryTimeController.php` — Logik (`shouldShowOnRequest()`, Early-Return-Guard, Term-Zweig)
+- `tests/src/Controllers/Product/ProductDeliveryTimeTest.php` — neuer PHPUnit-Test (6 Fälle)
+
+Nutzt dieselben Optionen wie PR #10 (`OPTIONS_ON_REQUEST_DELIVERY_TIME` / `_TEXT`) — kein neues Admin-Feld nötig.
+
+### Verhalten
+- Nicht auf Lager, keine Lieferzeit im JTL → **"auf Anfrage"**
+- Nicht auf Lager, 999-Sentinel → "auf Anfrage" (wie PR #10)
+- Nicht auf Lager, echte Lieferzeit (> 0) → normale Tage-Berechnung (unverändert)
+- Auf Lager → unverändert (Feature ist out-of-stock-only)
+- Zulaufdatum bekannt → Vorrang vor "auf Anfrage"
+- Option deaktiviert → nie "auf Anfrage"
+
+### Nach einem JTL-Upstream-Update
+```bash
+git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php
 ```
 
 ---
