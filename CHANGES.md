@@ -2,8 +2,8 @@
 
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
-**Basis:** JTL WooCommerce Connector Version 2.4.1
-**Fork-Version:** 2.4.1.4 (4. Stelle = Fork-Revision)
+**Basis:** JTL WooCommerce Connector Version 2.4.2
+**Fork-Version:** 2.4.2.0 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
@@ -123,6 +123,23 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 | `src/Utilities/SqlTraits/CustomerOrderTrait.php` | #7 | `FORK FIX (PR #7)` |
 
 **PR #1 (ACF) manuell prüfen:** In `src/Controllers/ProductController.php` darf kein Aufruf von `ProductAdvancedCustomFieldsController` stehen (weder im Pull- noch im Push-Abschnitt).
+
+---
+
+## Merge-Historie
+
+### Upstream 2.4.2 (Juli 2026)
+
+Merge von `upstream/master` (Tag `2.4.2`) in den Fork über den Integrationsbranch `merge/upstream-2.4.2`.
+
+- **47 Upstream-Commits** übernommen: Security-Updates (SQL-Injection-Fixes CO-2305/CO-3478, neuer `AuthorizationTest`), WPML-Verbesserungen, CI-Migration von GitLab auf GitHub Actions.
+- Nur **2 echte Konflikte** (`woo-jtl-connector.php`, `build-config.yaml`), beide aufgelöst; alle Fork-Marker haben den Automerge überlebt.
+- Fork-Version auf **2.4.2.0** angehoben (in `build-config.yaml`, `woo-jtl-connector.php`, `readme.txt`, `README.md`).
+
+> **⚠ Bekanntes Upstream-Problem in 2.4.2:** `composer.json` fordert `symfony/yaml: ^6.4`,
+> aber `composer.lock` und das laufende `vendor/` nutzen `v3.4.47`. Ein `composer install --no-dev`
+> bricht deshalb ab. Bewusst **nicht** gefixt, um nicht von upstream abzuweichen — beim ZIP-Build
+> im Dist-Ordner temporär auf `^3.4` setzen (siehe Abschnitt „ZIP erstellen").
 
 ---
 
