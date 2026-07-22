@@ -111,25 +111,10 @@ class CustomerOrderItemController extends AbstractBaseController
                 $orderItem->setProductId(new Identity((string)$product->get_id()));
 
                 if ($product instanceof \WC_Product_Variation) {
-                    switch (Config::get(Config::OPTIONS_VARIATION_NAME_FORMAT)) {
-                        case 'space_parent':
-                        case 'space':
-                            $format = '%s %s';
-                            break;
-                        case 'brackets_parent':
-                        case 'brackets':
-                            $format = '%s (%s)';
-                            break;
-                        default:
-                            $format = '%s';
-                            break;
-                    }
-
-                    $orderItem->setName(\sprintf(
-                        $format,
-                        $orderItem->getName(),
-                        \wc_get_formatted_variation($product, true)
-                    ));
+                    // Use the variation's own name instead of rebuilding it via
+                    // wc_get_formatted_variation(), which reads live attribute postmeta
+                    // and silently returns '' when that meta is missing/inconsistent.
+                    $orderItem->setName(\html_entity_decode($product->get_name()));
                 }
             }
 
