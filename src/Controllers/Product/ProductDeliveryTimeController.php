@@ -18,6 +18,10 @@ class ProductDeliveryTimeController extends AbstractBaseController
     // ("auf Anfrage") instead of a real number of days. Hard-wired on purpose (JTL convention).
     private const ON_REQUEST_SUPPLIER_DELIVERY_TIME = 999;
 
+    // FORK ADDITION: sortable "days" value for "auf Anfrage" when choosing the shortest variant
+    // delivery time for a variable parent product. Treated as the longest possible delivery time.
+    private const ON_REQUEST_SORT_VALUE = 99999;
+
     /**
      * @param ProductModel $product
      * @param \WC_Product  $wcProduct
@@ -33,11 +37,34 @@ class ProductDeliveryTimeController extends AbstractBaseController
         \update_post_meta((int)$productId, '_jtl_additional_handling_time', $product->getAdditionalHandlingTime());
         \update_post_meta((int)$productId, '_jtl_supplier_delivery_time', $product->getSupplierDeliveryTime());
 
+        // FORK ADDITION (PR #11): persist inflow / "Erscheint am" dates too, so a pure stock-level sync
+        // reproduces the same delivery time (otherwise a 999 article with an inflow date would fall
+        // back to "auf Anfrage" because the date is not part of the reconstructed stock model).
+        $nextInflowDate = $product->getNextAvailableInflowDate();
+        \update_post_meta(
+            (int)$productId,
+            '_jtl_next_available_inflow_date',
+            $nextInflowDate instanceof \DateTimeInterface ? $nextInflowDate->format('Y-m-d') : ''
+        );
+        $availableFromDate = $product->getAvailableFrom();
+        \update_post_meta(
+            (int)$productId,
+            '_jtl_available_from',
+            $availableFromDate instanceof \DateTimeInterface ? $availableFromDate->format('Y-m-d') : ''
+        );
+        // END FORK ADDITION
+
         $time                               = $product->calculateHandlingTime();
         $germanizedDeliveryTimeTaxonomyName = 'product_delivery_time';
 
         $this->removeDeliveryTimeTerm((int)$productId);
         $this->removeDeliveryTimeTerm((int)$productId, $germanizedDeliveryTimeTaxonomyName);
+
+        // FORK ADDITION (PR #11): reset the aggregation meta; it is (re)set below once a delivery time is
+        // resolved. Lets aggregateMasterDeliveryTime() pick the shortest variant for the parent.
+        \delete_post_meta((int)$productId, '_jtl_delivery_time_days');
+        \delete_post_meta((int)$productId, '_jtl_delivery_time_string');
+        // END FORK ADDITION
 
         if (Config::get(Config::OPTIONS_USE_DELIVERYTIME_CALC) !== 'deactivated') {
             //Check if product is in stock and custom in-stock delivery time is configured
@@ -82,9 +109,14 @@ class ProductDeliveryTimeController extends AbstractBaseController
                 }
             }
 
+            // FORK ADDITION (PR #11): numeric base for choosing the shortest variant delivery time on the
+            // parent (aggregateMasterDeliveryTime). Captured before the offset turns $time into a range.
+            $baseDays = (int)$time;
+            // END FORK ADDITION
+
             // FORK ADDITION (PR #12): decide whether to show the "auf Anfrage" text. Computed before
             // the offset reformatting below so the handling-time check sees the raw calculated integer.
-            $showOnRequest = $this->shouldShowOnRequest($product, $time, $inflowDateApplied);
+            $showOnRequest = $this->shouldShowOnRequest($product, $baseDays, $inflowDateApplied);
             // END FORK ADDITION
 
             if ($offset !== 0 && !$useInStockDeliveryTime) {
@@ -101,6 +133,11 @@ class ProductDeliveryTimeController extends AbstractBaseController
                 // FORK ADDITION (PR #12): do not hide the delivery time when we intend to show "auf Anfrage"
                 && !$showOnRequest
             ) {
+                // FORK ADDITION (PR #11): in stock with zero delivery time = fastest, no term. Record it so a
+                // variable parent can still treat this as the shortest variant (empty string => no term).
+                \update_post_meta((int)$productId, '_jtl_delivery_time_days', 0);
+                \update_post_meta((int)$productId, '_jtl_delivery_time_string', '');
+                // END FORK ADDITION
                 return;
             }
 
@@ -112,6 +149,7 @@ class ProductDeliveryTimeController extends AbstractBaseController
             //Build Term string - use custom in-stock delivery time if configured and product is in stock
             if ($useInStockDeliveryTime) {
                 $deliveryTimeString = \trim($inStockDeliveryTime);
+                $sortDays           = 0; // FORK ADDITION (PR #11): in stock = shortest delivery time
             } elseif ($showOnRequest) {
                 // FORK ADDITION (PR #12): show the configured "auf Anfrage" text instead of a day count.
                 // Triggered either by the JTL supplier delivery time 999 sentinel or by no delivery
@@ -122,6 +160,7 @@ class ProductDeliveryTimeController extends AbstractBaseController
                 // Fall back to a sensible default if the configured text was saved empty,
                 // so we never create an empty delivery time term.
                 $deliveryTimeString = $onRequestText !== '' ? $onRequestText : 'auf Anfrage';
+                $sortDays           = self::ON_REQUEST_SORT_VALUE; // FORK ADDITION (PR #11): longest = "auf Anfrage"
                 // END FORK ADDITION
             } else {
                 $deliveryTimeString = \trim(
@@ -132,6 +171,7 @@ class ProductDeliveryTimeController extends AbstractBaseController
                         $suffixDeliveryTime
                     )
                 );
+                $sortDays = $baseDays; // FORK ADDITION (PR #11): calculated day count
             }
 
             if (
@@ -166,114 +206,18 @@ class ProductDeliveryTimeController extends AbstractBaseController
                     /** @var string $erscheintAmPrefix */
                     $erscheintAmPrefix  = Config::get(Config::OPTIONS_ERSCHEINT_AM_PREFIX, 'Lieferbar ab');
                     $deliveryTimeString = \trim($erscheintAmPrefix . ' ' . $erscheintAm->format('d.m.Y'));
+                    $sortDays           = (int)$today->diff($erscheintAm)->days; // FORK ADD (PR #11): days to date
                 }
             }
             // END FORK ADDITION
 
-            $term = \get_term_by(
-                'slug',
-                \wc_sanitize_taxonomy_name(
-                    Util::removeSpecialchars($deliveryTimeString)
-                ),
-                'product_delivery_times'
-            );
+            // FORK ADDITION (PR #11): store the resolved delivery time + a sortable day value so a variable
+            // parent can adopt the shortest variant's delivery time (aggregateMasterDeliveryTime()).
+            \update_post_meta((int)$productId, '_jtl_delivery_time_days', $sortDays);
+            \update_post_meta((int)$productId, '_jtl_delivery_time_string', $deliveryTimeString);
+            // END FORK ADDITION
 
-            if ($term === false) {
-                //Add term
-                $newTerm = \wp_insert_term(
-                    $deliveryTimeString,
-                    'product_delivery_times'
-                );
-
-                if ($newTerm instanceof WP_Error) {
-                    // var_dump($newTerm);
-                    // die();
-                    $error = new WP_Error('invalid_taxonomy', 'Could not create delivery time.');
-                    $this->logger->error(ErrorFormatter::formatError($error));
-                    $this->logger->error(ErrorFormatter::formatError($newTerm));
-                } else {
-                    $termId = $newTerm['term_id'];
-
-                    \wp_set_object_terms((int)$productId, $termId, 'product_delivery_times', true);
-
-                    if (SupportedPlugins::isActive(SupportedPlugins::PLUGIN_GERMAN_MARKET)) {
-                        \update_post_meta((int)$productId, '_lieferzeit', $termId);
-                    }
-                }
-            } elseif ($term instanceof \WP_Term) {
-                \wp_set_object_terms((int)$productId, $term->term_id, $term->taxonomy, true);
-
-                if (SupportedPlugins::isActive(SupportedPlugins::PLUGIN_GERMAN_MARKET)) {
-                    \update_post_meta((int)$productId, '_lieferzeit', $term->term_id);
-                }
-            }
-
-            if (
-                SupportedPlugins::isActive(SupportedPlugins::PLUGIN_WOOCOMMERCE_GERMANIZED)
-                || SupportedPlugins::isActive(SupportedPlugins::PLUGIN_WOOCOMMERCE_GERMANIZED2)
-                || SupportedPlugins::isActive(SupportedPlugins::PLUGIN_WOOCOMMERCE_GERMANIZEDPRO)
-            ) {
-                $germanizedTerm = \get_term_by(
-                    'slug',
-                    \wc_sanitize_taxonomy_name(
-                        Util::removeSpecialchars($deliveryTimeString)
-                    ),
-                    $germanizedDeliveryTimeTaxonomyName
-                );
-
-                $germanizedTermId = false;
-                if ($germanizedTerm === false) {
-                    $germanizedTermArray = \wp_insert_term(
-                        $deliveryTimeString,
-                        $germanizedDeliveryTimeTaxonomyName
-                    );
-
-                    if ($germanizedTermArray instanceof WP_Error) {
-                        $error = new WP_Error(
-                            'invalid_taxonomy',
-                            'Could not create delivery time for germanized.'
-                        );
-                        $this->logger->error(ErrorFormatter::formatError($error));
-                        $this->logger->error(ErrorFormatter::formatError($germanizedTermArray));
-                    }
-
-                    if (\is_array($germanizedTermArray) && isset($germanizedTermArray['term_id'])) {
-                        $germanizedTermId = $germanizedTermArray['term_id'];
-                    }
-                } elseif ($germanizedTerm instanceof \WP_Term) {
-                    $germanizedTermId = $germanizedTerm->term_id;
-                }
-
-                if ($germanizedTermId !== false) {
-                    \wp_set_object_terms(
-                        (int)$productId,
-                        $germanizedTermId,
-                        $germanizedDeliveryTimeTaxonomyName,
-                        true
-                    );
-
-                    if (
-                        SupportedPlugins::comparePluginVersion(
-                            SupportedPlugins::PLUGIN_WOOCOMMERCE_GERMANIZED2,
-                            '>=',
-                            '3.7.0'
-                        )
-                    ) {
-                        /** @var string $oldDeliveryTime */
-                        $oldDeliveryTime = $this->util->getPostMeta(
-                            $productId,
-                            '_default_delivery_time',
-                            true
-                        );
-                        $this->util->updatePostMeta(
-                            $productId,
-                            '_default_delivery_time',
-                            ($germanizedTerm instanceof \WP_Term) ? $germanizedTerm->slug : '',
-                            $oldDeliveryTime
-                        );
-                    }
-                }
-            }
+            $this->assignDeliveryTimeTerm((int)$productId, $deliveryTimeString);
         }
     }
 
@@ -302,6 +246,179 @@ class ProductDeliveryTimeController extends AbstractBaseController
                 $product->getSupplierDeliveryTime() === self::ON_REQUEST_SUPPLIER_DELIVERY_TIME
                 || $handlingTime === 0
             );
+    }
+
+    /**
+     * Create (if needed) and assign the delivery time term(s) for a single product on both the
+     * WooCommerce and (if active) Germanized delivery time taxonomies.
+     *
+     * FORK ADDITION (PR #11): extracted from pushData() so the variable-parent aggregation
+     * (aggregateMasterDeliveryTime) can reuse the exact same logic.
+     *
+     * @param int    $productId
+     * @param string $deliveryTimeString
+     * @return void
+     */
+    private function assignDeliveryTimeTerm(int $productId, string $deliveryTimeString): void
+    {
+        $germanizedDeliveryTimeTaxonomyName = 'product_delivery_time';
+
+        $term = \get_term_by(
+            'slug',
+            \wc_sanitize_taxonomy_name(
+                Util::removeSpecialchars($deliveryTimeString)
+            ),
+            'product_delivery_times'
+        );
+
+        if ($term === false) {
+            //Add term
+            $newTerm = \wp_insert_term(
+                $deliveryTimeString,
+                'product_delivery_times'
+            );
+
+            if ($newTerm instanceof WP_Error) {
+                $error = new WP_Error('invalid_taxonomy', 'Could not create delivery time.');
+                $this->logger->error(ErrorFormatter::formatError($error));
+                $this->logger->error(ErrorFormatter::formatError($newTerm));
+            } else {
+                $termId = $newTerm['term_id'];
+
+                \wp_set_object_terms($productId, $termId, 'product_delivery_times', true);
+
+                if (SupportedPlugins::isActive(SupportedPlugins::PLUGIN_GERMAN_MARKET)) {
+                    \update_post_meta($productId, '_lieferzeit', $termId);
+                }
+            }
+        } elseif ($term instanceof \WP_Term) {
+            \wp_set_object_terms($productId, $term->term_id, $term->taxonomy, true);
+
+            if (SupportedPlugins::isActive(SupportedPlugins::PLUGIN_GERMAN_MARKET)) {
+                \update_post_meta($productId, '_lieferzeit', $term->term_id);
+            }
+        }
+
+        if (
+            SupportedPlugins::isActive(SupportedPlugins::PLUGIN_WOOCOMMERCE_GERMANIZED)
+            || SupportedPlugins::isActive(SupportedPlugins::PLUGIN_WOOCOMMERCE_GERMANIZED2)
+            || SupportedPlugins::isActive(SupportedPlugins::PLUGIN_WOOCOMMERCE_GERMANIZEDPRO)
+        ) {
+            $germanizedTerm = \get_term_by(
+                'slug',
+                \wc_sanitize_taxonomy_name(
+                    Util::removeSpecialchars($deliveryTimeString)
+                ),
+                $germanizedDeliveryTimeTaxonomyName
+            );
+
+            $germanizedTermId = false;
+            if ($germanizedTerm === false) {
+                $germanizedTermArray = \wp_insert_term(
+                    $deliveryTimeString,
+                    $germanizedDeliveryTimeTaxonomyName
+                );
+
+                if ($germanizedTermArray instanceof WP_Error) {
+                    $error = new WP_Error(
+                        'invalid_taxonomy',
+                        'Could not create delivery time for germanized.'
+                    );
+                    $this->logger->error(ErrorFormatter::formatError($error));
+                    $this->logger->error(ErrorFormatter::formatError($germanizedTermArray));
+                }
+
+                if (\is_array($germanizedTermArray) && isset($germanizedTermArray['term_id'])) {
+                    $germanizedTermId = $germanizedTermArray['term_id'];
+                }
+            } elseif ($germanizedTerm instanceof \WP_Term) {
+                $germanizedTermId = $germanizedTerm->term_id;
+            }
+
+            if ($germanizedTermId !== false) {
+                \wp_set_object_terms(
+                    $productId,
+                    $germanizedTermId,
+                    $germanizedDeliveryTimeTaxonomyName,
+                    true
+                );
+
+                if (
+                    SupportedPlugins::comparePluginVersion(
+                        SupportedPlugins::PLUGIN_WOOCOMMERCE_GERMANIZED2,
+                        '>=',
+                        '3.7.0'
+                    )
+                ) {
+                    /** @var string $oldDeliveryTime */
+                    $oldDeliveryTime = $this->util->getPostMeta(
+                        (string)$productId,
+                        '_default_delivery_time',
+                        true
+                    );
+                    $this->util->updatePostMeta(
+                        (string)$productId,
+                        '_default_delivery_time',
+                        ($germanizedTerm instanceof \WP_Term) ? $germanizedTerm->slug : '',
+                        $oldDeliveryTime
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * FORK ADDITION (PR #11): Set a variable parent product's delivery time to the SHORTEST delivery time
+     * among its variations, so the pre-selection display reflects the fastest available variant.
+     * Reads the per-variation meta written by pushData(). Called from ProductController after the
+     * master and after each variation push (the upstream Util::syncMasterProducts finish hook never
+     * runs because its counter option is never incremented), and from the stock-level push.
+     *
+     * @param int $masterProductId
+     * @return void
+     */
+    public function aggregateMasterDeliveryTime(int $masterProductId): void
+    {
+        if (Config::get(Config::OPTIONS_USE_DELIVERYTIME_CALC) === 'deactivated') {
+            return;
+        }
+
+        $wcProduct = \wc_get_product($masterProductId);
+        if (!$wcProduct instanceof \WC_Product || !$wcProduct->is_type('variable')) {
+            return;
+        }
+
+        $found      = false;
+        $bestDays   = 0;
+        $bestString = '';
+
+        foreach ($wcProduct->get_children() as $childId) {
+            $daysMeta = \get_post_meta((int)$childId, '_jtl_delivery_time_days', true);
+            if ($daysMeta === '' || $daysMeta === false) {
+                continue; // variation has no resolved delivery time
+            }
+
+            $days = (int)$daysMeta;
+            if (!$found || $days < $bestDays) {
+                $found      = true;
+                $bestDays   = $days;
+                $bestString = (string)\get_post_meta((int)$childId, '_jtl_delivery_time_string', true);
+            }
+        }
+
+        if (!$found) {
+            return;
+        }
+
+        $this->removeDeliveryTimeTerm($masterProductId);
+        $this->removeDeliveryTimeTerm($masterProductId, 'product_delivery_time');
+
+        // Empty string => the shortest variant is in stock with no delivery time term -> leave none.
+        if ($bestString !== '') {
+            $this->assignDeliveryTimeTerm($masterProductId, $bestString);
+        }
+
+        \wc_delete_product_transients($masterProductId);
     }
 
     /**
