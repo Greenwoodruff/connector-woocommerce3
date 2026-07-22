@@ -3,7 +3,7 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.2
-**Fork-Version:** 2.4.2.01 (4. Stelle = Fork-Revision)
+**Fork-Version:** 2.4.2.02 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
@@ -127,6 +127,45 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 ---
 
 ## Merge-Historie
+
+### Fork-Revision 2.4.2.02 (Juli 2026)
+
+**Hotfix:** Behebt einen fatalen Fehler beim Produkt-Push von variablen Artikeln.
+
+#### Problem
+
+Der Onlineshop-Abgleich brach bei variablen Produkten (Varianten) ab mit:
+
+```
+Call to undefined method ProductDeliveryTimeController::aggregateMasterDeliveryTime()
+```
+
+**Ursache:** Der Upstream-2.4.2-Merge hat `src/Controllers/Product/ProductDeliveryTimeController.php`
+auf die Upstream-Version zurückgesetzt und dabei **alle PR-#11-Ergänzungen in dieser einen Datei**
+verworfen (`aggregateMasterDeliveryTime()`, `assignDeliveryTimeTerm()`, die Sortier-Metas). PR #12
+wurde anschließend auf dieser zurückgesetzten Datei aufgebaut, ohne dass das Fehlen auffiel — die
+PR-#11-Aufrufe in `ProductController.php` und `ProductStockLevelController.php` blieben jedoch
+bestehen. Ergebnis: aufgerufene Methode existierte nicht mehr → Fatal Error bei jedem Varianten-Push.
+
+**Zweiter, stiller Defekt:** Derselbe Reset entfernte auch das Persistieren von
+`_jtl_next_available_inflow_date` und `_jtl_available_from` in `pushData()`. Der Bestandsabgleich
+(`ProductStockLevelController`) liest diese Metas weiterhin — sie waren also immer leer, wodurch
+zulaufbasierte Lieferzeiten beim reinen Bestandsabgleich fälschlich auf „auf Anfrage" zurückfielen.
+
+#### Lösung
+
+- Die verworfene PR-#11-Infrastruktur in die aktuelle (PR-#12-)Datei zurückgeführt und mit der
+  `shouldShowOnRequest()`-Verbesserung aus PR #12 zusammengeführt (letztere ist eine Obermenge der
+  ursprünglichen 999-Prüfung und bleibt erhalten):
+  - `aggregateMasterDeliveryTime()` und `assignDeliveryTimeTerm()` wiederhergestellt,
+  - Sortier-Metas `_jtl_delivery_time_days` / `_jtl_delivery_time_string` (inkl. `$sortDays` je Zweig,
+    Konstante `ON_REQUEST_SORT_VALUE`),
+  - Persistenz von `_jtl_next_available_inflow_date` / `_jtl_available_from` wiederhergestellt.
+- **Lehre:** Der in dieser Datei dokumentierte Post-Merge-Check
+  (`git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php`)
+  hätte den Regress erkannt und wurde beim 2.4.2-Merge nicht ausgeführt.
+- Fork-Version auf **2.4.2.02** angehoben (in `build-config.yaml`, `woo-jtl-connector.php`,
+  `readme.txt`, `README.md`, `CHANGES.md`).
 
 ### Fork-Revision 2.4.2.01 (Juli 2026)
 
