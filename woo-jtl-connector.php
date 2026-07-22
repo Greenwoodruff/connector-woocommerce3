@@ -3,7 +3,7 @@
 /**
  * Plugin Name: JTL-Connector for WooCommerce [Camplorer]
  * Description: Connect your woocommerce-shop with JTL-Wawi, the free multichannel-erp for mail order business.
- * Version: 2.4.2.02
+ * Version: 2.4.2.03
  * Requires PHP: 8.3
  * Requires at least: 6.4
  * Tested up to: 7.0

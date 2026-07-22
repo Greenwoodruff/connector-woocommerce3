@@ -3,7 +3,7 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.2
-**Fork-Version:** 2.4.2.02 (4. Stelle = Fork-Revision)
+**Fork-Version:** 2.4.2.03 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
@@ -128,6 +128,11 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 
 ## Merge-Historie
 
+### Fork-Revision 2.4.2.03 (Juli 2026)
+
+- **PR #13:** Bei Variationsartikeln fehlte auf der importierten Auftragsposition der gewählte Variationswert (z. B. Farbe) — der Packer sah auf dem Lieferschein nur den Namen des Vaterartikels. Ursache und Fix siehe [PR #13](#pr-13-variationsfarbe-auf-auftragsposition-wiederherstellen).
+- Fork-Version auf **2.4.2.03** angehoben (in `build-config.yaml`, `woo-jtl-connector.php`, `readme.txt`, `README.md`, `CHANGES.md`).
+
 ### Fork-Revision 2.4.2.02 (Juli 2026)
 
 **Hotfix:** Behebt einen fatalen Fehler beim Produkt-Push von variablen Artikeln.
@@ -205,6 +210,7 @@ Merge von `upstream/master` (Tag `2.4.2`) in den Fork über den Integrationsbran
 | #10 | Lieferzeit 999 → "auf Anfrage" | aktuell |
 | #11 | Varianten: Hauptprodukt = kürzeste Lieferzeit + Bestandsabgleich-Fix | aktuell |
 | #12 | Keine JTL-Lieferzeit → "auf Anfrage" | aktuell |
+| #13 | Variationsfarbe auf Auftragsposition wiederherstellen | aktuell |
 
 ---
 
@@ -900,6 +906,41 @@ Nutzt dieselben Optionen wie PR #10 (`OPTIONS_ON_REQUEST_DELIVERY_TIME` / `_TEXT
 ### Nach einem JTL-Upstream-Update
 ```bash
 git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeController.php
+```
+
+---
+
+## PR #13: Variationsfarbe auf Auftragsposition wiederherstellen
+
+**Commit:** aktuell
+**Zweck:** Bei Variationsartikeln (z. B. ein Zelt in mehreren Farben) stand auf der importierten Auftragsposition nur der Name des Vaterartikels, ohne den gewählten Variationswert. Auf dem Lieferschein sah der Packer dann z. B. nur „TentBox Lite" statt „TentBox Lite Forest green (Grün)" und wusste nicht, welche Variante zu packen ist. Das Verhalten war zudem uneinheitlich — bei manchen Varianten desselben Vaterartikels kam die Farbe mit, bei anderen nicht.
+
+### Hintergrund
+
+`CustomerOrderItemController::pullProductOrderItems()` baute den Positionsnamen bisher per `\wc_get_formatted_variation($product, true)` zusammen. Diese Funktion liest die Attribut-Postmeta der Variante **live zum Zeitpunkt des Imports** neu aus und liefert `''`, sobald diese Metadaten für eine einzelne Variante fehlen oder inkonsistent sind — unabhängig davon, ob andere Varianten desselben Vaterartikels intakte Metadaten haben. Genau das erklärt das uneinheitliche Verhalten zwischen Geschwister-Varianten. Die Formatierung erfolgte zusätzlich über die Option `Config::OPTIONS_VARIATION_NAME_FORMAT`, für die es keine Admin-Oberfläche gibt (nur per `wp_options` direkt setzbar) und die im Default-Fall (leerer String) die Farbe ohnehin verwarf.
+
+### Umsetzung
+
+Die Position wird per SKU bereits eindeutig dem Kindartikel (`WC_Product_Variation`) zugeordnet. Dessen eigener, von WooCommerce gepflegter Name enthält die Farbe zuverlässig (das ist derselbe Name, der beim Produkt-Push als JTL-Artikelname verwendet wird). Der Positionsname wird daher direkt aus diesem Variationsnamen gesetzt, statt ihn live neu zu rekonstruieren:
+
+```php
+if ($product instanceof \WC_Product_Variation) {
+    $orderItem->setName(\html_entity_decode($product->get_name()));
+}
+```
+
+Die `Config::OPTIONS_VARIATION_NAME_FORMAT`-Option selbst bleibt unverändert bestehen (wird an anderer Stelle für den JTL-Produktnamen weiterhin genutzt).
+
+### Betroffene Datei
+- `src/Controllers/Order/CustomerOrderItemController.php` — `pullProductOrderItems()`
+
+### Verhalten
+- Auftragsposition eines Variationsartikels zeigt jetzt durchgängig den vollständigen Variationsnamen inkl. Farbe/Ausprägung.
+- Kein neues Admin-Feld nötig.
+
+### Nach einem JTL-Upstream-Update
+```bash
+git diff upstream/master..HEAD -- src/Controllers/Order/CustomerOrderItemController.php
 ```
 
 ---
