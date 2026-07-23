@@ -111,10 +111,22 @@ class CustomerOrderItemController extends AbstractBaseController
                 $orderItem->setProductId(new Identity((string)$product->get_id()));
 
                 if ($product instanceof \WC_Product_Variation) {
-                    // Use the variation's own name instead of rebuilding it via
-                    // wc_get_formatted_variation(), which reads live attribute postmeta
-                    // and silently returns '' when that meta is missing/inconsistent.
-                    $orderItem->setName(\html_entity_decode($product->get_name()));
+                    // Build the variation description from the order item's OWN meta data
+                    // (stored at checkout time, same source WooCommerce uses for the "Farbe: ..."
+                    // line in order emails/admin) instead of the variation's live attribute
+                    // postmeta, which can differ from what was actually ordered by the time of
+                    // import (edited attributes, WPML, stock resync, ...).
+                    $attributeParts = [];
+                    foreach ($item->get_formatted_meta_data() as $meta) {
+                        $attributeParts[] = \wp_strip_all_tags((string)$meta->display_key)
+                            . ': ' . \wp_strip_all_tags((string)$meta->display_value);
+                    }
+
+                    if (!empty($attributeParts)) {
+                        $orderItem->setName(\html_entity_decode(
+                            \trim($item->get_name()) . ' ' . \implode(', ', $attributeParts)
+                        ));
+                    }
                 }
             }
 
