@@ -3,7 +3,7 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.2
-**Fork-Version:** 2.4.2.03 (4. Stelle = Fork-Revision)
+**Fork-Version:** 2.4.2.04 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
@@ -127,6 +127,12 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 ---
 
 ## Merge-Historie
+
+### Fork-Revision 2.4.2.04 (Juli 2026)
+
+**Korrektur zu PR #13:** Der in 2.4.2.03 ausgelieferte erste Fix (Positionsname aus `$product->get_name()` der Variante) hat sich im Praxistest als wirkungslos erwiesen — `WC_Product_Variation::get_name()` liefert nur den rohen `post_title`, WooCommerce hängt die Attribute dort nicht automatisch an. Die Variationsangabe wird jetzt stattdessen aus den am Bestellzeitpunkt an der Auftragsposition gespeicherten Metadaten gelesen (`WC_Order_Item_Product::get_formatted_meta_data()`) — dieselbe Quelle, die auch die Bestell-Mail für die „Farbe: ..."-Zeile nutzt. Details siehe [PR #13](#pr-13-variationsfarbe-auf-auftragsposition-wiederherstellen).
+
+- Fork-Version auf **2.4.2.04** angehoben (in `build-config.yaml`, `woo-jtl-connector.php`, `readme.txt`, `README.md`, `CHANGES.md`).
 
 ### Fork-Revision 2.4.2.03 (Juli 2026)
 
@@ -917,17 +923,33 @@ git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeCon
 
 ### Hintergrund
 
-`CustomerOrderItemController::pullProductOrderItems()` baute den Positionsnamen bisher per `\wc_get_formatted_variation($product, true)` zusammen. Diese Funktion liest die Attribut-Postmeta der Variante **live zum Zeitpunkt des Imports** neu aus und liefert `''`, sobald diese Metadaten für eine einzelne Variante fehlen oder inkonsistent sind — unabhängig davon, ob andere Varianten desselben Vaterartikels intakte Metadaten haben. Genau das erklärt das uneinheitliche Verhalten zwischen Geschwister-Varianten. Die Formatierung erfolgte zusätzlich über die Option `Config::OPTIONS_VARIATION_NAME_FORMAT`, für die es keine Admin-Oberfläche gibt (nur per `wp_options` direkt setzbar) und die im Default-Fall (leerer String) die Farbe ohnehin verwarf.
+`CustomerOrderItemController::pullProductOrderItems()` baute den Positionsnamen ursprünglich per `\wc_get_formatted_variation($product, true)` zusammen. Diese Funktion liest `$variation->get_attributes()` — also die Attribut-Postmeta der Variante — **live zum Zeitpunkt des Imports** neu aus und liefert `''`, sobald diese Metadaten für eine einzelne Variante fehlen oder inkonsistent sind, unabhängig davon, ob andere Varianten desselben Vaterartikels intakte Metadaten haben.
 
-### Umsetzung
+### Erster Ansatz (verworfen — hat in der Praxis nicht funktioniert)
 
-Die Position wird per SKU bereits eindeutig dem Kindartikel (`WC_Product_Variation`) zugeordnet. Dessen eigener, von WooCommerce gepflegter Name enthält die Farbe zuverlässig (das ist derselbe Name, der beim Produkt-Push als JTL-Artikelname verwendet wird). Der Positionsname wird daher direkt aus diesem Variationsnamen gesetzt, statt ihn live neu zu rekonstruieren:
+Erster Versuch: Positionsname aus `$product->get_name()` der Variante setzen, in der Annahme, WooCommerce hänge die Attribute automatisch an den Variations-Namen an. **Das stimmt nicht:** `WC_Product_Variation` überschreibt `get_name()` nicht — die Methode liefert nur den rohen `post_title` der Variante, der die Farbe nur enthält, wenn er beim Anlegen der Variante manuell entsprechend betitelt wurde. In der Praxis war das nicht zuverlässig der Fall, wodurch der Fix wirkungslos blieb.
+
+### Finale Umsetzung
+
+Die tatsächlich gewählten Attributwerte werden **nicht** aus der (möglicherweise seither veränderten) Variante neu ermittelt, sondern aus den **an der Auftragsposition selbst zum Bestellzeitpunkt gespeicherten Metadaten** gelesen (`WC_Order_Item_Product::get_formatted_meta_data()`) — exakt dieselbe Quelle, aus der WooCommerce die „Farbe: Forest green (Grün)"-Zeile in Bestell-Mail und Admin-Übersicht erzeugt. Diese Metadaten werden einmalig beim Checkout aus dem Warenkorb geschrieben und bleiben danach unverändert, unabhängig davon, ob sich die Live-Variante (Attribute, Terms, Postmeta) später ändert:
 
 ```php
 if ($product instanceof \WC_Product_Variation) {
-    $orderItem->setName(\html_entity_decode($product->get_name()));
+    $attributeParts = [];
+    foreach ($item->get_formatted_meta_data() as $meta) {
+        $attributeParts[] = \wp_strip_all_tags((string)$meta->display_key)
+            . ': ' . \wp_strip_all_tags((string)$meta->display_value);
+    }
+
+    if (!empty($attributeParts)) {
+        $orderItem->setName(\html_entity_decode(
+            \trim($item->get_name()) . ' ' . \implode(', ', $attributeParts)
+        ));
+    }
 }
 ```
+
+`get_formatted_meta_data()` überspringt (mit den Standardargumenten) Attribute, die bereits Teil von `$item->get_name()` sind — dadurch kommt es zu keiner Dopplung, falls der Positionsname zum Bestellzeitpunkt die Farbe schon enthielt.
 
 Die `Config::OPTIONS_VARIATION_NAME_FORMAT`-Option selbst bleibt unverändert bestehen (wird an anderer Stelle für den JTL-Produktnamen weiterhin genutzt).
 
@@ -935,7 +957,7 @@ Die `Config::OPTIONS_VARIATION_NAME_FORMAT`-Option selbst bleibt unverändert be
 - `src/Controllers/Order/CustomerOrderItemController.php` — `pullProductOrderItems()`
 
 ### Verhalten
-- Auftragsposition eines Variationsartikels zeigt jetzt durchgängig den vollständigen Variationsnamen inkl. Farbe/Ausprägung.
+- Auftragsposition eines Variationsartikels zeigt jetzt den zum Bestellzeitpunkt gewählten Variationswert (z. B. Farbe) — unabhängig vom späteren Zustand der WooCommerce-Variante.
 - Kein neues Admin-Feld nötig.
 
 ### Nach einem JTL-Upstream-Update
