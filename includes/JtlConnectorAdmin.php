@@ -1353,15 +1353,15 @@ final class JtlConnectorAdmin //phpcs:ignore PSR1.Classes.ClassDeclaration.Missi
 
         //Add in-stock delivery time textinput field
         $fields[] = [
-            'title'     => __('Delivery time for in-stock products', JTLWCC_TEXT_DOMAIN),
+            'title'     => __('Delivery time for in-stock products', 'woo-jtl-connector'),
             'type'      => 'jtl_text_input',
             'id'        => Config::OPTIONS_IN_STOCK_DELIVERY_TIME,
             'value'     => Config::get(Config::OPTIONS_IN_STOCK_DELIVERY_TIME),
             'helpBlock' => __(
-                "Define a custom delivery time text for products that are in stock (stock > 0)." . PHP_EOL .
-                "Example: 'im Camplorer Lager' or 'sofort lieferbar'." . PHP_EOL .
-                "Leave empty to use the calculated delivery time.",
-                JTLWCC_TEXT_DOMAIN
+                "Define a custom delivery time text for products that are in stock (stock > 0).
+                Example: 'im Camplorer Lager' or 'sofort lieferbar'.
+                Leave empty to use the calculated delivery time.",
+                'woo-jtl-connector'
             ),
         ];
 
@@ -1382,54 +1382,54 @@ final class JtlConnectorAdmin //phpcs:ignore PSR1.Classes.ClassDeclaration.Missi
 
         // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
         $fields[] = [
-            'title'     => __('Consider "Erscheint am" date as delivery time', JTLWCC_TEXT_DOMAIN),
+            'title'     => __('Consider "Erscheint am" date as delivery time', 'woo-jtl-connector'),
             'type'      => 'active_true_false_radio',
             'desc'      => __(
-                'Enable to use the "Erscheint am" field from JTL stock options (Lageroptionen) ' .
-                'as a delivery time string when stock is 0 and no supplier inflow date is available. ' .
-                'Displays a date-based text instead of a number of days (e.g. "Lieferbar ab 15.07.2025").',
-                JTLWCC_TEXT_DOMAIN
+                'Enable to use the "Erscheint am" field from JTL stock options (Lageroptionen)
+                as a delivery time string when stock is 0 and no supplier inflow date is available.
+                Displays a date-based text instead of a number of days (e.g. "Lieferbar ab 15.07.2025").',
+                'woo-jtl-connector'
             ),
             'id'        => Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE,
             'value'     => Config::get(Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE),
-            'trueText'  => __('Enabled', JTLWCC_TEXT_DOMAIN),
-            'falseText' => __('Disabled', JTLWCC_TEXT_DOMAIN),
+            'trueText'  => __('Enabled', 'woo-jtl-connector'),
+            'falseText' => __('Disabled', 'woo-jtl-connector'),
         ];
 
         $fields[] = [
-            'title'     => __('Prefix for "Erscheint am" delivery time', JTLWCC_TEXT_DOMAIN),
+            'title'     => __('Prefix for "Erscheint am" delivery time', 'woo-jtl-connector'),
             'type'      => 'jtl_text_input',
             'id'        => Config::OPTIONS_ERSCHEINT_AM_PREFIX,
             'value'     => Config::get(Config::OPTIONS_ERSCHEINT_AM_PREFIX),
             'helpBlock' => __(
-                'Text shown before the date when using "Erscheint am" as delivery time.' . PHP_EOL .
-                'Example: "Lieferbar ab" → displays "Lieferbar ab 15.07.2025".',
-                JTLWCC_TEXT_DOMAIN
+                'Text shown before the date when using "Erscheint am" as delivery time.
+                Example: "Lieferbar ab" → displays "Lieferbar ab 15.07.2025".',
+                'woo-jtl-connector'
             ),
         ];
         // END FORK ADDITION
 
         // FORK ADDITION: JTL supplier delivery time 999 => "auf Anfrage"
         $fields[] = [
-            'title'     => __('Show "on request" for 999 days delivery time', JTLWCC_TEXT_DOMAIN),
+            'title'     => __('Show "on request" for 999 days delivery time', 'woo-jtl-connector'),
             'type'      => 'active_true_false_radio',
             'desc'      => __(
-                'Enable to display a custom text (e.g. "auf Anfrage") instead of a calculated delivery ' .
-                'time when the JTL supplier delivery time is set to 999 days and the product is out of ' .
-                'stock. (Default: Enabled).',
-                JTLWCC_TEXT_DOMAIN
+                'Enable to display a custom text (e.g. "auf Anfrage") instead of a calculated delivery
+                time when the JTL supplier delivery time is set to 999 days and the product is out of
+                stock. (Default: Enabled).',
+                'woo-jtl-connector'
             ),
             'id'        => Config::OPTIONS_ON_REQUEST_DELIVERY_TIME,
             'value'     => Config::get(
                 Config::OPTIONS_ON_REQUEST_DELIVERY_TIME,
                 Config::JTLWCC_CONFIG_DEFAULTS[Config::OPTIONS_ON_REQUEST_DELIVERY_TIME]
             ),
-            'trueText'  => __('Enabled', JTLWCC_TEXT_DOMAIN),
-            'falseText' => __('Disabled', JTLWCC_TEXT_DOMAIN),
+            'trueText'  => __('Enabled', 'woo-jtl-connector'),
+            'falseText' => __('Disabled', 'woo-jtl-connector'),
         ];
 
         $fields[] = [
-            'title'     => __('Text for "on request" delivery time', JTLWCC_TEXT_DOMAIN),
+            'title'     => __('Text for "on request" delivery time', 'woo-jtl-connector'),
             'type'      => 'jtl_text_input',
             'id'        => Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT,
             'value'     => Config::get(
@@ -1438,7 +1438,7 @@ final class JtlConnectorAdmin //phpcs:ignore PSR1.Classes.ClassDeclaration.Missi
             ),
             'helpBlock' => __(
                 'Text shown when the JTL supplier delivery time is 999 days (e.g. "auf Anfrage").',
-                JTLWCC_TEXT_DOMAIN
+                'woo-jtl-connector'
             ),
         ];
         // END FORK ADDITION
