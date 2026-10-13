@@ -46,7 +46,10 @@ class CustomerOrderItemTest extends AbstractTestCase
             [100, 120, 20],
             [10, 11.9, 19],
             [4.12, 4.44, 7.8],
-            [4.1234, 4.4444, 7.79],
+            // FORK FIX (PHP 8.3): upstream 2.4.4 expects 7.78 (PHP 8.4 round() rewrite); the fork runs on
+            // PHP 8.3, where the same input yields 7.79 - keep the test valid on both versions.
+            [4.1234, 4.4444, \PHP_VERSION_ID >= 80400 ? 7.78 : 7.79],
+            // END FORK FIX
             [4.7565, 5.0181, 5.5],
             [4.75, 5.01, 5.5],
             [4.5300, 4.7565, 5],

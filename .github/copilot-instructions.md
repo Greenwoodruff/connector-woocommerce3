@@ -4,16 +4,19 @@
 
 A WordPress plugin that synchronizes WooCommerce shop data (products, categories, customers, orders) with JTL-Wawi ERP via the `jtl/connector` core framework. The plugin exposes a `/jtlconnector` HTTP endpoint that JTL-Wawi calls to pull and push data.
 
-Distribution: packaged as a ZIP for wordpress.org via SVN. PHP >= 8.1 required.
+Distribution: upstream packages a ZIP for wordpress.org via SVN. This fork (Greenwoodruff, for camplorer.de) is shipped as a hand-built ZIP (see "ZIP erstellen" in `CHANGES.md`).
+
+**PHP 8.3 required — and the fork must stay on 8.3.** Upstream requires PHP 8.4 from 2.4.4 on, but the production server runs 8.3. `composer.json` pins `config.platform.php` to `8.3.0`, and `composer.lock` is resolved for 8.3. Never run a plain `composer update` or adopt upstream's lock file unchanged; see "PHP 8.3 statt 8.4" in `CHANGES.md`. Fork changes are marked in code with `// FORK ADDITION` / `// FORK FIX`.
 
 ## Commands
 
 ```bash
-# Install dependencies
-composer install
+# Install dependencies (locally missing PHP extensions such as fileinfo/sqlite3/zip may be ignored; never use --ignore-platform-reqs, which also ignores the PHP version)
+composer install --ignore-platform-req='ext-*'
 
-# Run all tests
+# Run all tests (the session tests need ext-sqlite3; enable it ad hoc if php.ini lacks it)
 composer run tests
+php -d extension=sqlite3 vendor/bin/phpunit
 
 # Run a single test file
 ./vendor/bin/phpunit tests/src/Controllers/ImageTest.php
@@ -33,11 +36,14 @@ composer run phpstan
 # Run both phpcs + phpstan
 composer run analyse
 
+# WordPress coding standards / plugin-check rules
+composer run phpcs:wp
+
 # Build release ZIP (requires phing)
 ./build.sh
 ```
 
-CI uses the container `ghcr.io/jtl-software/connector-utils-ci-docker/php/cli:8.3`. Tests run against PHP 8.1, 8.2, and 8.3 in the matrix.
+CI uses the container `ghcr.io/jtl-software/connector-utils-ci-docker/php/cli:8.3`, and PHPUnit runs on PHP 8.3. Upstream uses 8.4; the fork switched this back to 8.3.
 
 ## Architecture
 
@@ -95,9 +101,11 @@ Workflows in `.github/workflows/`:
 
 | File | Trigger | Purpose |
 |---|---|---|
-| `check.yaml` | push master / PRs | phpcs + phpstan + phpunit (PHP 8.1/8.2/8.3) |
-| `build-and-deploy.yaml` | tag push | Phing ZIP + SVN deploy to wordpress.org |
-| `auto-draft-pr.yaml` | push to feature branches | Auto-creates draft PR |
-| `update-changelog.yaml` | release published | Calls reusable workflow in `changelog-extractor` repo |
-| `lint-actions.yaml` | workflow file changes | actionlint syntax validation |
-| `lint-scripts.yaml` | `.github/scripts/**` changes | shellcheck on shell scripts |
+| `ci.yaml` | push master / PRs / weekly / manual | phpcs + phpstan + phpunit (PHP 8.3) + WordPress plugin check |
+| `plugin-check.yaml` | `workflow_call` (from `ci.yaml` / build) | WordPress Plugin Check in wp-env (PHP 8.3) |
+| `build-and-deploy.yaml` | tag push `x.y.z` | Phing ZIP + SVN deploy to wordpress.org (upstream release path, not used for the fork) |
+| `update-changelog.yaml` | tag push / manual | Calls reusable workflow in `changelog-extractor` repo |
+
+Up to 2.4.2 there was also an `auto-draft-pr.yaml`, plus `lint-actions.yaml` and `lint-scripts.yaml`. Upstream removed them in 2.4.3/2.4.4, so pushing a feature branch no longer opens a draft PR automatically.
+
+The bundled mini-plugins live in `plugins/JtlWooCommerceConnector/Plugins/` (before 2.4.4: `plugins/jtl/`).

@@ -2,13 +2,14 @@
 
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
-**Basis:** JTL WooCommerce Connector Version 2.4.2
-**Fork-Version:** 2.4.2.04 (4. Stelle = Fork-Revision)
+**Basis:** JTL WooCommerce Connector Version 2.4.4
+**Fork-Version:** 2.4.4.0 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
+**PHP-Version:** 8.3 (bewusste Abweichung von upstream, das ab 2.4.4 PHP 8.4 verlangt — siehe [PHP 8.3 statt 8.4](#php-83-statt-84-bewusste-abweichung-von-upstream))
 
 > **Versionierungskonvention:** Die Fork-Version ist immer `<upstream-version>.<fork-revision>`.
-> Beispiel: JTL bringt 2.5.0 → nach dem Merge wird unsere Version `2.5.0.1`.
-> Geändert wird in: `build-config.yaml` (Zeile 1) und `woo-jtl-connector.php` (Plugin-Header).
+> Beispiel: JTL bringt 2.5.0 → nach dem Merge wird unsere Version `2.5.0.0`, der erste Fork-Fix danach `2.5.0.01`.
+> Geändert wird in: `build-config.yaml` (Zeile 1), `woo-jtl-connector.php` (Plugin-Header), `readme.txt` (`Stable tag`), `README.md` und `CHANGES.md` (jeweils `Fork-Version`).
 
 **WordPress Plugin-Ordner:** `woo-jtl-connector-camplorer` (fest, unabhängig von der Version)
 
@@ -46,7 +47,7 @@ ZIP="$ROOT/woo-jtl-connector-camplorer-<version>.zip"
 
 # 1. Dist-Ordner aufbauen
 rm -rf "$DIST"
-mkdir -p "$DIST/config" "$DIST/db" "$DIST/logs" "$DIST/plugins/jtl" "$DIST/tmp"
+mkdir -p "$DIST/config" "$DIST/db" "$DIST/logs" "$DIST/plugins/JtlWooCommerceConnector" "$DIST/tmp"
 for f in index.php woo-jtl-connector.php uninstall.php LICENSE CHANGELOG.md readme.txt build-config.yaml composer.json composer.lock; do
     [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$DIST/$f"
 done
@@ -57,10 +58,19 @@ done
 [ -f "$ROOT/logs/.htaccess" ] && cp "$ROOT/logs/.htaccess" "$DIST/logs/.htaccess"
 cp -r "$ROOT/includes" "$DIST/includes"
 cp -r "$ROOT/src"      "$DIST/src"
-[ -d "$ROOT/plugins/jtl" ] && cp -r "$ROOT/plugins/jtl" "$DIST/plugins/jtl"
+# Seit 2.4.4 liegen die mitgelieferten Mini-Plugins unter plugins/JtlWooCommerceConnector/ (vorher plugins/jtl/).
+# "/." kopiert den Inhalt - sonst entsteht ein verschachteltes plugins/JtlWooCommerceConnector/JtlWooCommerceConnector/.
+cp -r "$ROOT/plugins/JtlWooCommerceConnector/." "$DIST/plugins/JtlWooCommerceConnector/"
 
 # 2. Production-Dependencies installieren (kein dev-Ballast)
-cd "$DIST" && composer install --no-dev --no-interaction --ignore-platform-reqs
+# composer.json legt die Plattform auf PHP 8.3.0 fest, composer.lock ist seit 2.4.4 eingecheckt.
+# NICHT --ignore-platform-reqs verwenden: das würde auch die PHP-Version ignorieren und könnte
+# Pakete installieren, die PHP 8.4 brauchen (=> Fatal Error auf dem 8.3-Server).
+# Ignoriert werden nur PHP-Erweiterungen, die lokal fehlen (fileinfo, sqlite3, zip) - der Server hat sie.
+cd "$DIST" && composer install --no-dev --no-interaction --prefer-dist --ignore-platform-req='ext-*'
+
+# 2b. Kontrolle: Symfony muss 7.x sein (8.x braucht PHP 8.4)
+grep -A1 '"name": "symfony/\(event-dispatcher\|finder\)"' "$DIST/vendor/composer/installed.json" | grep version
 
 # 3. ZIP erstellen (woo-jtl-connector-camplorer/ als Top-Level-Ordner, Forward-Slashes fuer Linux)
 powershell.exe -NoProfile -Command "
@@ -85,9 +95,13 @@ powershell.exe -NoProfile -Command "
 ## Update-Strategie bei einer neuen JTL-Upstream-Version
 
 ```bash
-git fetch upstream
-git merge upstream/master
+git fetch upstream --tags
+git switch -c merge/upstream-<version>
+git merge --no-ff --no-commit <version>     # Tag des Upstream-Releases, z. B. 2.4.4
 ```
+
+> **Tipp:** Vorab lässt sich ohne Änderung am Arbeitsverzeichnis prüfen, welche Dateien in Konflikt geraten:
+> `git merge-tree --write-tree --name-only master <version>`
 
 Git löst Merge-Konflikte automatisch; betroffene Dateien mit Konflikten anzeigen:
 
@@ -107,6 +121,35 @@ git diff upstream/master..HEAD -- src/Controllers/Product/ProductDeliveryTimeCon
 git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 ```
 
+**Pflicht-Check: Marker-Anzahl je Datei vor und nach dem Merge vergleichen.** Weicht eine Zahl ab,
+ist beim Merge Fork-Code verloren gegangen (so passiert beim 2.4.2-Merge, siehe Fork-Revision 2.4.2.02):
+
+```bash
+BASE=$(git merge-base master <version>)
+for f in $(git diff --name-only $BASE master); do
+  a=$(git show master:$f 2>/dev/null | grep -c "FORK "); b=$(grep -c "FORK " $f 2>/dev/null)
+  echo "$f  master=$a  jetzt=$b"
+done
+```
+
+**Pflicht-Check: PHP 8.3.** Upstream verlangt seit 2.4.4 PHP 8.4, der Fork bleibt auf 8.3
+(siehe [PHP 8.3 statt 8.4](#php-83-statt-84-bewusste-abweichung-von-upstream)). Nach jedem Merge:
+
+1. `Requires PHP: 8.3` in `woo-jtl-connector.php` und `readme.txt` (upstream überschreibt das ggf. ohne Konflikt!).
+2. `composer.json`: `"php": ">=8.3"` und `config.platform.php: "8.3.0"`.
+3. `composer.lock`: kein Paket darf PHP 8.4+ verlangen. Hat upstream die Lock-Datei geändert, nur die
+   betroffenen Pakete gezielt neu auflösen (kein volles `composer update`, sonst ändern sich auch
+   `jtl/connector` & Co.):
+   ```bash
+   composer update <paket1> <paket2> --with-all-dependencies --no-install --ignore-platform-req='ext-*'
+   ```
+   Prüfen, welche Pakete PHP 8.4+ verlangen:
+   ```bash
+   python -c "import json;d=json.load(open('composer.lock'));[print(p['name'],p['version'],p['require']['php']) for s in ('packages','packages-dev') for p in d[s] if any(v in p.get('require',{}).get('php','') for v in ('8.4','8.5'))]"
+   ```
+4. CI-Workflows (`.github/workflows/*.yaml`): PHP-Version / Docker-Image auf 8.3.
+5. Tests mit PHP-8.4-spezifischen Erwartungen (z. B. `round()`-Ergebnisse) versionsabhängig machen.
+
 ### Checkliste der zu prüfenden Dateien nach einem Upstream-Merge
 
 | Datei | PR | Marker im Code |
@@ -121,12 +164,127 @@ git diff upstream/master..HEAD -- src/Utilities/SqlTraits/CustomerOrderTrait.php
 | `src/Controllers/Product/ProductDeliveryTimeController.php` | #5, #8, #10, #11, #12 | `FORK ADDITION` |
 | `src/Controllers/ManufacturerController.php` | #6 | `FORK ADDITION (PR #6)` |
 | `src/Utilities/SqlTraits/CustomerOrderTrait.php` | #7 | `FORK FIX (PR #7)` |
+| `src/Controllers/ProductStockLevelController.php` | Bestandsabgleich-Fix, #11 | `FORK ADDITION` |
+| `src/Controllers/Order/CustomerOrderItemController.php` | #13 | ⚠ kein Marker — Block mit `get_formatted_meta_data()` muss erhalten bleiben |
+| `composer.json`, `composer.lock` | PHP 8.3 | kein Marker möglich (JSON) — siehe Pflicht-Check PHP 8.3 |
+| `.github/workflows/ci.yaml`, `plugin-check.yaml`, `build-and-deploy.yaml` | PHP 8.3 | kein Marker — PHP-Version 8.3 statt 8.4 |
+| `tests/src/Controllers/Order/CustomerOrderItemTest.php` | PHP 8.3 | `FORK FIX (PHP 8.3)` |
 
 **PR #1 (ACF) manuell prüfen:** In `src/Controllers/ProductController.php` darf kein Aufruf von `ProductAdvancedCustomFieldsController` stehen (weder im Pull- noch im Push-Abschnitt).
 
 ---
 
 ## Merge-Historie
+
+### Upstream 2.4.4 (Oktober 2026)
+
+Merge des Upstream-Tags `2.4.4` (enthält auch 2.4.3) in den Fork über den Integrationsbranch `merge/upstream-2.4.4`.
+Fork-Version **2.4.4.0**.
+
+#### Was upstream mitbringt
+
+**2.4.3 (August 2026)**
+- **Sicherheit (CO-3586/CO-3583):** neuer Connector-Core, Session-Tokens werden mit SHA-256 gehasht.
+- **Sicherheit (CO-3614):** Schutz gegen Wiederverwendung (Replay) von Sessions — neuer
+  `src/Session/AuthenticatedSqliteSessionHandler.php`, eingebunden in `includes/JtlConnector.php`;
+  Sessions liegen unter `<plugin>/var/` (Plugin-Ordner muss beschreibbar sein, ist er bereits wegen `logs/`/`db/`).
+  Außerdem verweigert `CustomerController` beim Kunden-Push Änderungen an privilegierten WP-Konten
+  (alles mit mehr Rechten als ein normaler Kunde: Admin, Shop-Manager, Redakteur, Autor …) und lässt über
+  Kundengruppen keine solchen Rollen mehr zuweisen. **Folge für camplorer:** Ist ein Mitarbeiter-Konto
+  (z. B. Admin) in der Wawi als Kunde geführt, werden Wawi-Änderungen an diesem Konto übersprungen —
+  im Connector-Log als `Rejected customer push targeting a protected (privileged) user account` sichtbar.
+- CO-3161 unterschiedliche Kundensprachen, CO-3308 SEO-URL bleibt beim Update erhalten,
+  CO-3262/CO-3095 neue WPML-Plugin-Namen, CO-3283 Übersetzungen beim Produkt-Löschen entfernen.
+- WordPress-Plugin-Check-Fixes (u. a. `$loader` → `$jtlwcc_loader`, `is_plugin_active()` statt
+  `active_plugins`-Filter, `load_plugin_textdomain` entfernt — hatte nie gewirkt, da nur `.po`-Dateien
+  mit abweichendem Namen `jtlconnector-*.po` vorhanden sind).
+
+**2.4.4 (Oktober 2026)**
+- **CO-3606:** German Market — Garantie-Label (EU-GARAN) wird in den Shop übertragen
+  (`ProductGermanMarketFieldsController`, `ProductAttrController`). **Für camplorer relevant**, da
+  German Market 4.1 aktiv ist.
+- **CO-3605:** Germanized — Garantiedauer (EU-GARAN, ab Germanized 4.1). Bei camplorer nicht aktiv.
+- **CO-3573:** GPSR-EU-Adresse wird gelöscht, wenn in der Wawi die verantwortliche Person entfernt wird.
+
+**Struktur / Build**
+- Mini-Plugins umgezogen: `plugins/jtl/…` → `plugins/JtlWooCommerceConnector/Plugins/…`
+  (ZIP-Anleitung oben angepasst).
+- `composer.lock` ist jetzt eingecheckt (vorher in `.gitignore`); `.claude/`, `var/`, `.phpunit.cache/` sind jetzt ignoriert.
+- CI umgebaut: `check.yaml` → `ci.yaml`, neu `plugin-check.yaml` (WordPress Plugin Check);
+  `auto-draft-pr.yaml`, `lint-actions.yaml`, `lint-scripts.yaml` entfernt. Neues Composer-Script `phpcs:wp`.
+
+#### Konflikte und Auflösung
+
+Probelauf vorab mit `git merge-tree` — nur **3 Konflikte**, alle Fork-Marker haben den Automerge überlebt
+(Marker-Anzahl je Datei vorher/nachher identisch; Fork-Dateien ohne Upstream-Änderung byte-gleich mit `master`).
+
+| Datei | Konflikt | Auflösung |
+|---|---|---|
+| `build-config.yaml` | Version | `2.4.4.0` |
+| `readme.txt` | `Stable tag` | `2.4.4.0`; zusätzlich `Requires PHP` (ohne Konflikt auf 8.4 gesetzt) zurück auf **8.3** |
+| `woo-jtl-connector.php` | Version / `Requires PHP` | `2.4.4.0` / **8.3** |
+| `woo-jtl-connector.php` | Autoloader | Fork-Struktur (PR #3: `elseif` + Hinweis bei fehlendem `vendor/`) behalten, aber Upstream-Variablenname `$jtlwcc_loader` übernommen. Ohne diese Anpassung wäre `$jtlwcc_loader` in den Folgezeilen undefiniert gewesen. |
+
+`includes/JtlConnectorAdmin.php` und `src/Controllers/ProductController.php` wurden von beiden Seiten
+geändert und automatisch zusammengeführt; die Upstream-Änderungen betreffen dort nur phpcs-Kommentare /
+WP-Plugin-Check-Anpassungen, keine Fork-Zeilen.
+
+#### Fork-Abweichungen in diesem Merge (PHP 8.3)
+
+Siehe [PHP 8.3 statt 8.4](#php-83-statt-84-bewusste-abweichung-von-upstream).
+
+#### Prüfung
+
+- PHPUnit: **178 Tests grün** (lokal PHP 8.5 mit `-d extension=sqlite3`; die neuen Session-Tests brauchen sqlite3).
+- phpcs / phpstan: keine neuen Befunde durch den Merge. Bestehende Befunde (phpcs: 17 in
+  `Config.php`, `ProductDeliveryTimeController.php`, `ProductController.php`, `CustomerOrderTrait.php`;
+  phpstan: 7 „Cannot cast mixed" / instanceof in Fork-Dateien) stammen aus Fork-Code und waren
+  bereits auf `master` vorhanden.
+- Hinweis lokal (Windows, `core.autocrlf=true`): phpcs meldet `End of line character is invalid`
+  für CRLF-Arbeitskopien — reines Arbeitskopie-Artefakt, im Repo liegen LF-Zeilenenden.
+
+> Das bekannte Problem aus 2.4.2 (`symfony/yaml: ^6.4` in `composer.json`, aber `v3.4.47` im Lock)
+> ist **erledigt**: die eingecheckte `composer.lock` enthält `symfony/yaml v6.4.47`. Der frühere
+> Workaround beim ZIP-Build (Constraint im Dist-Ordner auf `^3.4` setzen) entfällt.
+
+### PHP 8.3 statt 8.4 (bewusste Abweichung von upstream)
+
+**Hintergrund:** Upstream 2.4.4 setzt PHP 8.4 voraus (Commit `a92d68b`). camplorer.de läuft auf
+PHP 8.3.35; entschieden wurde am 13.10.2026, auf 8.3 zu bleiben.
+
+**Warum das geht:** Der Connector-Quellcode selbst nutzt keine PHP-8.4-Syntax. Die 8.4-Pflicht kam
+nur über die Lock-Datei: drei Pakete wurden in Versionen festgeschrieben, die PHP 8.4 verlangen.
+
+**Warum es nötig ist:** Mit der Upstream-Lock-Datei würden `symfony/event-dispatcher` und
+`symfony/finder` v8 installiert — auf PHP 8.3 ein Fatal Error beim Laden des Plugins. Die alte
+ZIP-Anleitung nutzte `--ignore-platform-reqs` und hätte das nicht verhindert.
+
+**Änderungen gegenüber upstream:**
+
+| Datei | Upstream 2.4.4 | Fork |
+|---|---|---|
+| `composer.json` `require.php` | `>=8.4` | `>=8.3` |
+| `composer.json` `config.platform.php` | `8.4.0` | `8.3.0` |
+| `composer.lock` `doctrine/instantiator` | 2.1.0 | 2.0.0 |
+| `composer.lock` `symfony/event-dispatcher` | v8.0.15 | v7.4.17 |
+| `composer.lock` `symfony/finder` | v8.0.14 | v7.4.20 |
+| `woo-jtl-connector.php` / `readme.txt` `Requires PHP` | 8.4 | 8.3 |
+| CI (`ci.yaml`, `plugin-check.yaml`, `build-and-deploy.yaml`) | PHP 8.4 | PHP 8.3 |
+| `tests/…/CustomerOrderItemTest.php` | erwartet `7.78` | `7.78` ab PHP 8.4, `7.79` unter 8.3 |
+
+Alle übrigen Pakete in `composer.lock` (inkl. `jtl/connector`) sind identisch mit upstream. Erzeugt mit:
+
+```bash
+composer update doctrine/instantiator symfony/event-dispatcher symfony/finder \
+  --with-all-dependencies --no-install --ignore-platform-req='ext-*'
+```
+
+**Zum Test:** PHP 8.4 hat `round()` neu implementiert. Für den Datensatz (4.1234 / 4.4444) liefert
+8.3 `7.79`, 8.4 `7.78` (siehe Upstream-Commit `eb546e6`). Das ist ein Rundungs-Grenzfall der Testdaten,
+keine Funktionsänderung für den Shop.
+
+**Später auf PHP 8.4 umsteigen:** Server umstellen, dann die Tabelle oben rückgängig machen
+(Upstream-Stand von `composer.json`/`composer.lock`/CI/Test übernehmen) und neues ZIP bauen.
 
 ### Fork-Revision 2.4.2.04 (Juli 2026)
 
@@ -217,6 +375,7 @@ Merge von `upstream/master` (Tag `2.4.2`) in den Fork über den Integrationsbran
 | #11 | Varianten: Hauptprodukt = kürzeste Lieferzeit + Bestandsabgleich-Fix | aktuell |
 | #12 | Keine JTL-Lieferzeit → "auf Anfrage" | aktuell |
 | #13 | Variationsfarbe auf Auftragsposition wiederherstellen | aktuell |
+| – | PHP 8.3 statt 8.4 (Composer, CI, Test) — siehe [Abschnitt](#php-83-statt-84-bewusste-abweichung-von-upstream) | Merge 2.4.4 |
 
 ---
 

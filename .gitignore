@@ -1,7 +1,6 @@
 plugins/*
 !plugins/.gitkeep
-!plugins/jtl
-composer.lock
+!plugins/JtlWooCommerceConnector
 vendor/**
 config/config.json
 config/features.json
@@ -12,6 +11,7 @@ db/
 logs/
 !logs/.gitkeep
 .idea/
+.claude/
 .code
 .DS_Store
 *.mo
@@ -19,3 +19,6 @@ logs/
 *.zip
 /junit.xml
 /phpcs-quality-report.json
+/phpcs-report.xml
+var/
+.phpunit.cache/
