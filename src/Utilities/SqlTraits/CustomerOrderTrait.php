@@ -36,8 +36,9 @@ trait CustomerOrderTrait
 
         $hposEnabled = \get_option('woocommerce_custom_orders_table_enabled') === 'yes';
 
-        // FORK FIX (PR #7): use post_date_gmt (UTC) instead of post_date (local TZ) to avoid sync delay on CET/CEST servers
-        $dateColumn   = $hposEnabled ? 'date_created_gmt' : 'post_date_gmt';
+        // FORK FIX (PR #7): use post_date_gmt (UTC) instead of post_date (local TZ)
+        // to avoid sync delay on CET/CEST servers
+        $dateColumn = $hposEnabled ? 'date_created_gmt' : 'post_date_gmt';
         // END FORK FIX
         $statusColumn = $hposEnabled ? 'status' : 'post_status';
         $typeColumn   = $hposEnabled ? 'type' : 'post_type';

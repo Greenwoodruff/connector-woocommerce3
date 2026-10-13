@@ -16,11 +16,11 @@ class ProductDeliveryTimeController extends AbstractBaseController
 {
     // FORK ADDITION: JTL sentinel value for the supplier delivery time meaning "on request"
     // ("auf Anfrage") instead of a real number of days. Hard-wired on purpose (JTL convention).
-    private const ON_REQUEST_SUPPLIER_DELIVERY_TIME = 999;
+    private const int ON_REQUEST_SUPPLIER_DELIVERY_TIME = 999;
 
     // FORK ADDITION: sortable "days" value for "auf Anfrage" when choosing the shortest variant
     // delivery time for a variable parent product. Treated as the longest possible delivery time.
-    private const ON_REQUEST_SORT_VALUE = 99999;
+    private const int ON_REQUEST_SORT_VALUE = 99999;
 
     /**
      * @param ProductModel $product
@@ -30,7 +30,7 @@ class ProductDeliveryTimeController extends AbstractBaseController
      */
     public function pushData(ProductModel $product, \WC_Product $wcProduct): void
     {
-        $productId                          = $product->getId()->getEndpoint();
+        $productId = $product->getId()->getEndpoint();
 
         // Persist handling times so stock-level-only pushes can recalculate delivery time
         // without the full product model being available.
@@ -69,7 +69,7 @@ class ProductDeliveryTimeController extends AbstractBaseController
         if (Config::get(Config::OPTIONS_USE_DELIVERYTIME_CALC) !== 'deactivated') {
             //Check if product is in stock and custom in-stock delivery time is configured
             /** @var string $inStockDeliveryTime */
-            $inStockDeliveryTime = Config::get(Config::OPTIONS_IN_STOCK_DELIVERY_TIME, '');
+            $inStockDeliveryTime    = Config::get(Config::OPTIONS_IN_STOCK_DELIVERY_TIME, '');
             $useInStockDeliveryTime = $product->getStockLevel() > 0 && !empty(\trim($inStockDeliveryTime));
 
             //FUNCTION ATTRIBUTE BY JTL
@@ -155,8 +155,8 @@ class ProductDeliveryTimeController extends AbstractBaseController
                 // Triggered either by the JTL supplier delivery time 999 sentinel or by no delivery
                 // time being maintained in JTL at all (see $showOnRequest computation above).
                 /** @var string $onRequestText */
-                $onRequestText      = Config::get(Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT, 'auf Anfrage');
-                $onRequestText      = \trim($onRequestText);
+                $onRequestText = Config::get(Config::OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT, 'auf Anfrage');
+                $onRequestText = \trim($onRequestText);
                 // Fall back to a sensible default if the configured text was saved empty,
                 // so we never create an empty delivery time term.
                 $deliveryTimeString = $onRequestText !== '' ? $onRequestText : 'auf Anfrage';
@@ -171,7 +171,7 @@ class ProductDeliveryTimeController extends AbstractBaseController
                         $suffixDeliveryTime
                     )
                 );
-                $sortDays = $baseDays; // FORK ADDITION (PR #11): calculated day count
+                $sortDays           = $baseDays; // FORK ADDITION (PR #11): calculated day count
             }
 
             if (
@@ -398,11 +398,16 @@ class ProductDeliveryTimeController extends AbstractBaseController
                 continue; // variation has no resolved delivery time
             }
 
+            if (!\is_numeric($daysMeta)) {
+                continue; // unexpected meta value, treat like "no resolved delivery time"
+            }
+
             $days = (int)$daysMeta;
             if (!$found || $days < $bestDays) {
                 $found      = true;
                 $bestDays   = $days;
-                $bestString = (string)\get_post_meta((int)$childId, '_jtl_delivery_time_string', true);
+                $stringMeta = \get_post_meta((int)$childId, '_jtl_delivery_time_string', true);
+                $bestString = \is_string($stringMeta) ? $stringMeta : '';
             }
         }
 

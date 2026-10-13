@@ -320,7 +320,7 @@ class ProductController extends AbstractBaseController implements
             // 'future' when post_date lies in the future.
             $useAvailableFromAsDate = !\is_null($model->getAvailableFrom())
                 && !Config::get(Config::OPTIONS_CONSIDER_ERSCHEINT_AM_DATE, false);
-            $creationDate = $useAvailableFromAsDate
+            $creationDate           = $useAvailableFromAsDate
                 ? $model->getAvailableFrom()
                 : $model->getCreationDate();
             // END FORK FIX

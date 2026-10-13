@@ -27,13 +27,21 @@ jobs:
       contents: read
       checks: write
       packages: read
-    container:
-      image: ghcr.io/jtl-software/connector-utils-ci-docker/php/cli:8.3
-      options: --user root
+    # FORK FIX: upstream runs this job in JTL's private image
+    # ghcr.io/jtl-software/connector-utils-ci-docker/php/cli, which the fork cannot pull ("denied").
+    # Use the public setup-php action instead (same as the phpunit job below).
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # v2.37.0
+        with:
+          php-version: '8.3'
+          extensions: fileinfo, sqlite3, zip
+          tools: composer:v2
+          coverage: none
+    # END FORK FIX
 
       - run: git config --global --add safe.directory "${{ github.workspace }}"
 
@@ -78,6 +86,7 @@ jobs:
       - uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # v2.37.0
         with:
           php-version: ${{ matrix.php-version }}
+          extensions: fileinfo, sqlite3, zip
           tools: composer:v2
           coverage: none
 

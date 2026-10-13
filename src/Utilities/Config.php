@@ -43,17 +43,17 @@ class Config
         OPTIONS_CONSIDER_SUPPLIER_INFLOW_DATE            = 'jtlconnector_consider_supplier_inflow_date',
         OPTIONS_IN_STOCK_DELIVERY_TIME                   = 'jtlconnector_in_stock_delivery_time',
         // FORK ADDITION: "Erscheint am" from JTL stock options as delivery time string
-        OPTIONS_CONSIDER_ERSCHEINT_AM_DATE               = 'jtlconnector_consider_erscheint_am_date',
-        OPTIONS_ERSCHEINT_AM_PREFIX                      = 'jtlconnector_erscheint_am_prefix',
+        OPTIONS_CONSIDER_ERSCHEINT_AM_DATE = 'jtlconnector_consider_erscheint_am_date',
+        OPTIONS_ERSCHEINT_AM_PREFIX        = 'jtlconnector_erscheint_am_prefix',
         // END FORK ADDITION
         // FORK ADDITION: JTL supplier delivery time 999 => "auf Anfrage"
-        OPTIONS_ON_REQUEST_DELIVERY_TIME                 = 'jtlconnector_on_request_delivery_time',
-        OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT            = 'jtlconnector_on_request_delivery_time_text',
+        OPTIONS_ON_REQUEST_DELIVERY_TIME      = 'jtlconnector_on_request_delivery_time',
+        OPTIONS_ON_REQUEST_DELIVERY_TIME_TEXT = 'jtlconnector_on_request_delivery_time_text',
         // END FORK ADDITION
-        OPTIONS_CUSTOM_CHECKOUT_FIELDS                   = 'jtlconnector_custom_checkout_fields',
-        OPTIONS_LIMIT_CUSTOMER_QUERY_TYPE                = 'jtlconnector_limit_customer_query',
-        OPTIONS_FEATURES_JSON                            = 'jtlconnector_features_json',
-        OPTIONS_IGNORE_ORDERS_YOUNGER_THAN               = 'jtlconnector_ignore_orders_younger_than';
+        OPTIONS_CUSTOM_CHECKOUT_FIELDS     = 'jtlconnector_custom_checkout_fields',
+        OPTIONS_LIMIT_CUSTOMER_QUERY_TYPE  = 'jtlconnector_limit_customer_query',
+        OPTIONS_FEATURES_JSON              = 'jtlconnector_features_json',
+        OPTIONS_IGNORE_ORDERS_YOUNGER_THAN = 'jtlconnector_ignore_orders_younger_than';
 
     public const array JTLWCC_CONFIG_DEFAULTS = [
         //FIRSTPAGE

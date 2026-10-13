@@ -256,12 +256,10 @@ class ManufacturerController extends AbstractBaseController implements
                     }
 
                     // FORK ADDITION (PR #6): re-fetch by slug to recover after TypeError or WP_Error
-                    // If wp_insert_term returned a WP_Term use it directly; otherwise
-                    // re-fetch by slug (covers TypeError and WP_Error cases where the
-                    // term may still have been persisted).
-                    $term = ($newTerm instanceof \WP_Term)
-                        ? $newTerm
-                        : \get_term_by('slug', $name, $taxonomy);
+                    // wp_insert_term() never returns a WP_Term (only an id array or WP_Error),
+                    // so the term is always loaded by slug. That also covers the TypeError and
+                    // WP_Error cases, where the term may still have been persisted.
+                    $term = \get_term_by('slug', $name, $taxonomy);
                     // END FORK ADDITION
                 } elseif ($term instanceof \WP_Term) {
                     // FORK ADDITION (PR #6): wrap wp_update_term in try-catch for third-party plugin TypeError
