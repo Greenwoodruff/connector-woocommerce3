@@ -43,7 +43,7 @@ composer run phpcs:wp
 ./build.sh
 ```
 
-CI uses the container `ghcr.io/jtl-software/connector-utils-ci-docker/php/cli:8.3`, and PHPUnit runs on PHP 8.3. Upstream uses 8.4; the fork switched this back to 8.3.
+CI uses `shivammathur/setup-php` with PHP 8.3. Upstream runs the phpcs/phpstan job in JTL's private image `ghcr.io/jtl-software/connector-utils-ci-docker/php/cli`, which the fork cannot pull, so the fork replaced it (`FORK FIX` in `ci.yaml`). Upstream uses PHP 8.4; the fork switched back to 8.3. CI checks all files, so phpcs and phpstan must stay at zero findings or the job turns red and PHPUnit/plugin-check are skipped.
 
 ## Architecture
 

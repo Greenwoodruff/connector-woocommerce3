@@ -3,7 +3,7 @@
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
 **Basis:** JTL WooCommerce Connector Version 2.4.4
-**Fork-Version:** 2.4.4.0 (4. Stelle = Fork-Revision)
+**Fork-Version:** 2.4.4.01 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 **PHP-Version:** 8.3 (bewusste Abweichung von upstream, das ab 2.4.4 PHP 8.4 verlangt — siehe [PHP 8.3 statt 8.4](#php-83-statt-84-bewusste-abweichung-von-upstream))
 
@@ -167,7 +167,8 @@ done
 | `src/Controllers/ProductStockLevelController.php` | Bestandsabgleich-Fix, #11 | `FORK ADDITION` |
 | `src/Controllers/Order/CustomerOrderItemController.php` | #13 | ⚠ kein Marker — Block mit `get_formatted_meta_data()` muss erhalten bleiben |
 | `composer.json`, `composer.lock` | PHP 8.3 | kein Marker möglich (JSON) — siehe Pflicht-Check PHP 8.3 |
-| `.github/workflows/ci.yaml`, `plugin-check.yaml`, `build-and-deploy.yaml` | PHP 8.3 | kein Marker — PHP-Version 8.3 statt 8.4 |
+| `.github/workflows/ci.yaml` | PHP 8.3, Fork-CI | `FORK FIX` (setup-php statt privatem JTL-Image) + PHP-Version 8.3 |
+| `.github/workflows/plugin-check.yaml`, `build-and-deploy.yaml` | PHP 8.3 | kein Marker — PHP-Version 8.3 statt 8.4 |
 | `tests/src/Controllers/Order/CustomerOrderItemTest.php` | PHP 8.3 | `FORK FIX (PHP 8.3)` |
 
 **PR #1 (ACF) manuell prüfen:** In `src/Controllers/ProductController.php` darf kein Aufruf von `ProductAdvancedCustomFieldsController` stehen (weder im Pull- noch im Push-Abschnitt).
@@ -175,6 +176,49 @@ done
 ---
 
 ## Merge-Historie
+
+### Fork-Revision 2.4.4.01 (Oktober 2026)
+
+**Fork-CI auf GitHub lauffähig gemacht.** Keine funktionale Änderung am Plugin.
+
+#### Problem
+
+Die CI auf GitHub war für den Fork seit mindestens Juli 2026 bei jedem Push rot, ohne dass Code geprüft wurde:
+
+- Der Job `status-check` (phpcs + phpstan) läuft upstream im **privaten** Docker-Image
+  `ghcr.io/jtl-software/connector-utils-ci-docker/php/cli`. Der Fork darf es nicht laden
+  (`Error response from daemon: denied`), der Job bricht schon bei „Initialize containers" ab.
+- PHPUnit und der WordPress Plugin Check hängen per `needs:` von diesem Job ab und wurden deshalb übersprungen.
+- Selbst mit funktionierendem Image wäre der Job rot geblieben: Im Fork-Code standen
+  17 phpcs- und 7 phpstan-Befunde (siehe Prüfung beim 2.4.4-Merge).
+
+Folge: Ein Regress wie beim 2.4.2-Merge (siehe Fork-Revision 2.4.2.02) wäre nicht aufgefallen. Und es gab
+keinen einzigen Testlauf unter PHP 8.3 — lokal ist nur PHP 8.5 installiert.
+
+#### Lösung
+
+- **`.github/workflows/ci.yaml`** (`FORK FIX`): `status-check` nutzt statt des privaten Images die
+  öffentliche Action `shivammathur/setup-php` (PHP 8.3, Erweiterungen fileinfo/sqlite3/zip) — wie der
+  PHPUnit-Job es upstream schon tut. Der PHPUnit-Job bekommt dieselben Erweiterungen explizit
+  (die Session-Tests aus 2.4.3 brauchen sqlite3).
+- **phpcs** (17 automatisch behebbare Befunde, per `phpcbf`): Ausrichtung von `=` in
+  `Config.php`, `ProductDeliveryTimeController.php`, `ProductController.php`; native Typen für die
+  Konstanten `ON_REQUEST_SUPPLIER_DELIVERY_TIME` / `ON_REQUEST_SORT_VALUE` (`private const int`, ab PHP 8.3).
+  Dazu eine zu lange Kommentarzeile in `CustomerOrderTrait.php` (PR #7) umbrochen.
+- **phpstan** (7 Befunde):
+  - `ManufacturerController.php` (PR #6): Die Prüfung `$newTerm instanceof \WP_Term` war wirkungslos —
+    `wp_insert_term()` liefert nie ein `WP_Term`, sondern ein ID-Array oder `WP_Error`. Der Hersteller
+    wurde also schon bisher immer per Slug nachgeladen; jetzt steht das auch so im Code.
+  - `ProductStockLevelController.php` (Bestandsabgleich-Fix) und `ProductDeliveryTimeController.php`
+    (PR #11, `aggregateMasterDeliveryTime()`): Post-Meta-Werte (`mixed`) werden nicht mehr blind
+    gecastet, sondern geprüft (`is_numeric()` / `is_string()`). Für alle real vorkommenden Werte ist das
+    Ergebnis identisch (leer → `0` bzw. `''`).
+- Fork-Version auf **2.4.4.01** angehoben (in `build-config.yaml`, `woo-jtl-connector.php`, `readme.txt`, `README.md`, `CHANGES.md`).
+
+#### Prüfung
+
+- Lokal: phpcs ohne Befunde, phpstan `[OK] No errors`, PHPUnit 178 Tests grün.
+- GitHub-CI: siehe unten.
 
 ### Upstream 2.4.4 (Oktober 2026)
 
@@ -239,7 +283,7 @@ Siehe [PHP 8.3 statt 8.4](#php-83-statt-84-bewusste-abweichung-von-upstream).
 - phpcs / phpstan: keine neuen Befunde durch den Merge. Bestehende Befunde (phpcs: 17 in
   `Config.php`, `ProductDeliveryTimeController.php`, `ProductController.php`, `CustomerOrderTrait.php`;
   phpstan: 7 „Cannot cast mixed" / instanceof in Fork-Dateien) stammen aus Fork-Code und waren
-  bereits auf `master` vorhanden.
+  bereits auf `master` vorhanden. **Behoben in Fork-Revision 2.4.4.01.**
 - Hinweis lokal (Windows, `core.autocrlf=true`): phpcs meldet `End of line character is invalid`
   für CRLF-Arbeitskopien — reines Arbeitskopie-Artefakt, im Repo liegen LF-Zeilenenden.
 
