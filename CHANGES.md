@@ -213,12 +213,30 @@ keinen einzigen Testlauf unter PHP 8.3 — lokal ist nur PHP 8.5 installiert.
     (PR #11, `aggregateMasterDeliveryTime()`): Post-Meta-Werte (`mixed`) werden nicht mehr blind
     gecastet, sondern geprüft (`is_numeric()` / `is_string()`). Für alle real vorkommenden Werte ist das
     Ergebnis identisch (leer → `0` bzw. `''`).
+- **WordPress Plugin Check** (lief auf dem Fork zum ersten Mal, 18 Fehler, alle in den Fork-Einstellungen
+  für Lieferzeiten in `includes/JtlConnectorAdmin.php`, PR #5/#8/#10/#12):
+  - Textdomain als Konstante `JTLWCC_TEXT_DOMAIN` statt als Literal `'woo-jtl-connector'` → auf das Literal
+    umgestellt (wie upstream).
+  - Übersetzbare Texte waren per `.` / `PHP_EOL` zusammengesetzt → jetzt je ein einzelnes String-Literal
+    (über mehrere Zeilen, wie upstream). Die Texte werden als HTML ausgegeben, wo Zeilenumbrüche zusammenfallen —
+    die Anzeige im Admin bleibt gleich.
+  - `readme.txt`: Titel heißt jetzt wie im Plugin-Header `JTL-Connector for WooCommerce [Camplorer]`
+    (Warnung `mismatched_plugin_name`).
 - Fork-Version auf **2.4.4.01** angehoben (in `build-config.yaml`, `woo-jtl-connector.php`, `readme.txt`, `README.md`, `CHANGES.md`).
 
 #### Prüfung
 
 - Lokal: phpcs ohne Befunde, phpstan `[OK] No errors`, PHPUnit 178 Tests grün.
-- GitHub-CI: siehe unten.
+- **GitHub-CI komplett grün** (Lauf `38415384017` auf `ci/fork-ci-reparieren`): status-check (phpcs + phpstan),
+  **PHPUnit unter PHP 8.3** (damit ist auch die Rundungs-Erwartung `7.79` für PHP 8.3 bestätigt),
+  WordPress Plugin Check, actionlint, shellcheck.
+- Einziger verbleibender Plugin-Check-Hinweis: Warnung `unexpected_markdown_file` für `CHANGES.md` im
+  Repo-Root. Unkritisch — der Check prüft das Repo, ins ZIP kommt `CHANGES.md` nicht.
+- Lokal meldet `composer run phpcs:wp` zusätzlich 7 Fehler „Hook names … should start with the plugin prefix"
+  (`woocommerce_settings_jtlconnector`) und 6 Warnungen in `Db.php`. Beides ist unveränderter Upstream-Code und
+  wird vom Plugin Check auf GitHub nicht beanstandet.
+- **Fallstrick:** Der Plugin Check vergleicht `Stable tag` (`readme.txt`) mit `Version` (Plugin-Header) und
+  schlägt bei Abweichung fehl. Versionsnummern immer in **einem** Commit in allen fünf Dateien ändern.
 
 ### Upstream 2.4.4 (Oktober 2026)
 
