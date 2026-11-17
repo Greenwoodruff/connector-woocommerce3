@@ -274,6 +274,12 @@ Wichtige Versionen im Lock: `jtl/connector` 6.0.1 (verlangt PHP ≥ 8.3), `php-d
 
 - PHPUnit: **280 Tests grün** (lokal PHP 8.5).
 - phpcs: keine Befunde außer CRLF-Artefakten. phpstan: `[OK] No errors`.
+- **GitHub-CI komplett grün** (Lauf `44041426933`): status-check (phpcs + phpstan), **PHPUnit unter PHP 8.3**,
+  WordPress Plugin Check, actionlint, shellcheck.
+- ZIP `woo-jtl-connector-camplorer-2.5.0.0.zip`: Im `vendor/` verlangt kein Paket PHP ≥ 8.4.
+- **Nicht getestet:** ein echter Abgleich mit der Wawi gegen den neuen Core 6. Die Unit-Tests decken den
+  Request-Ablauf (Anmeldung, Session, RPC) nicht vollständig ab. Den ersten Abgleich nach dem Einspielen deshalb
+  beobachten (Connector-Log, Wawi-Abgleichsprotokoll).
 
 ### Fork-Revision 2.4.4.01 (Oktober 2026)
 
