@@ -2,8 +2,8 @@
 
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
-**Basis:** JTL WooCommerce Connector Version 2.4.4
-**Fork-Version:** 2.4.4.01 (4. Stelle = Fork-Revision)
+**Basis:** JTL WooCommerce Connector Version 2.4.5
+**Fork-Version:** 2.4.5.0 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 **PHP-Version:** 8.3 (bewusste Abweichung von upstream, das ab 2.4.4 PHP 8.4 verlangt — siehe [PHP 8.3 statt 8.4](#php-83-statt-84-bewusste-abweichung-von-upstream))
 
@@ -176,6 +176,54 @@ done
 ---
 
 ## Merge-Historie
+
+### Upstream 2.4.5 (November 2026)
+
+Merge des Upstream-Tags `2.4.5` in den Fork über den Integrationsbranch `merge/upstream-2.4.5`.
+Fork-Version **2.4.5.0**. Reines Sicherheitsupdate, **dringend**: Die Lücken stecken in allen
+früheren Fork-Versionen, auch in der live laufenden 2.4.2.04 und der nie ausgerollten 2.4.4.01.
+
+#### Was upstream mitbringt
+
+- **Sicherheit (CVE-2026-78193):** SQL-Injection **ohne Anmeldung** in den Endpunkten für Primärschlüssel-Zuordnung
+  und Checksummen (`ChecksumLoader.php`, `PrimaryKeyMapper.php`, `PrimaryKeyMappingTrait.php`).
+- **Sicherheit:** beliebiger Datei-Upload **ohne Anmeldung** über `image.push`. `ImageController` schreibt jetzt
+  nur noch echte Bilddateien (jpg/jpeg/jpe, png, gif, bmp, webp, tif/tiff, ico, avif). Der Inhalt wird per
+  `getimagesize()` geprüft und muss zur Dateiendung passen. **Folge für camplorer:** Ist ein Bild in der Wawi
+  mit falscher Endung hinterlegt (z. B. eine PNG als `.jpg`), wird es abgelehnt. Das bisherige Bild bleibt
+  dann erhalten, und im Connector-Log steht `Rejected image push for foreign key …`.
+- Neue Sicherheitstests unter `tests/src/Security/`.
+
+Keine Änderungen an `composer.json`, `composer.lock` oder CI. Der neue Code nutzt nichts, was PHP 8.4 voraussetzt
+(typisierte Klassenkonstanten gibt es seit 8.3, `getimagesize()` gehört zum PHP-Kern).
+
+#### Konflikte und Auflösung
+
+Nur die drei Versionsdateien, wie bei 2.4.4. Keine der von 2.4.5 geänderten Dateien enthält Fork-Code, die
+Marker-Anzahl ist je Datei unverändert.
+
+| Datei | Konflikt | Auflösung |
+|---|---|---|
+| `build-config.yaml` | Version | `2.4.5.0` |
+| `readme.txt` | `Stable tag` | `2.4.5.0` (`Requires PHP` blieb ohne Konflikt auf **8.3**) |
+| `woo-jtl-connector.php` | Version / `Requires PHP` | `2.4.5.0` / **8.3** |
+
+#### Prüfung
+
+- PHPUnit: **227 Tests grün** (lokal PHP 8.5 mit `-d extension=sqlite3`).
+- phpcs: keine Befunde außer den bekannten CRLF-Artefakten der Windows-Arbeitskopie.
+- phpstan: `[OK] No errors`. **Lokal** stürzt `composer run phpstan` mit dem PHP-Standardlimit von 128M ab
+  (`reached configured PHP memory limit`); mit `--memory-limit=-1` läuft es durch. Die CI ruft phpstan
+  bereits mit `--memory-limit=2G` auf.
+
+#### Noch offen: Upstream 2.5.0
+
+2.5.0 (November 2026) schließt weitere Lücken, die auch 2.4.5.0 noch hat: Umgehung der Anmeldung über einen
+leeren `jtlauth`-Parameter, SQL-Injection beim Zahlungsabgleich von Statusänderungen, gespeichertes XSS über
+Beschreibungen. Gleichzeitig hebt 2.5.0 den Connector-Core auf 6.0.1 sowie PHP-DI 7, Monolog 3, Symfony 7.4 und
+Doctrine DBAL 4. `jtl/connector` 6.0.1 verlangt PHP ≥ 8.3, ist also mit dem Fork vereinbar. Die
+`composer.lock` muss dafür aber für 8.3 neu aufgelöst werden (siehe Pflicht-Check PHP 8.3). Eigener Merge mit
+Test vor dem Ausrollen.
 
 ### Fork-Revision 2.4.4.01 (Oktober 2026)
 
