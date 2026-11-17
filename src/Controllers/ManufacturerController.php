@@ -220,8 +220,6 @@ class ManufacturerController extends AbstractBaseController implements
                 $name = \wc_sanitize_taxonomy_name(\substr(\trim($model->getName()), 0, 27));
                 $term = \get_term_by('slug', $name, $taxonomy);
 
-                \remove_filter('pre_term_description', 'wp_filter_kses');
-
                 if ($term === false) {
                     //Add term
                     $newTerm = null;
@@ -280,8 +278,6 @@ class ManufacturerController extends AbstractBaseController implements
                     }
                     // END FORK ADDITION
                 }
-
-                \add_filter('pre_term_description', 'wp_filter_kses');
 
                 if ($term instanceof \WP_Term) {
                     $model->getId()->setEndpoint((string)$term->term_id);

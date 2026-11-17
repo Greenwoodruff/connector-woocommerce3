@@ -2,8 +2,8 @@
 
 Dieses Dokument beschreibt alle Anpassungen, die im Fork `Greenwoodruff/connector-woocommerce3` gegenüber dem Original-Connector vorgenommen wurden.
 
-**Basis:** JTL WooCommerce Connector Version 2.4.5
-**Fork-Version:** 2.4.5.0 (4. Stelle = Fork-Revision)
+**Basis:** JTL WooCommerce Connector Version 2.5.0
+**Fork-Version:** 2.5.0.0 (4. Stelle = Fork-Revision)
 **Fork erstellt:** Januar 2026
 **PHP-Version:** 8.3 (bewusste Abweichung von upstream, das ab 2.4.4 PHP 8.4 verlangt — siehe [PHP 8.3 statt 8.4](#php-83-statt-84-bewusste-abweichung-von-upstream))
 
@@ -215,15 +215,65 @@ Marker-Anzahl ist je Datei unverändert.
 - phpstan: `[OK] No errors`. **Lokal** stürzt `composer run phpstan` mit dem PHP-Standardlimit von 128M ab
   (`reached configured PHP memory limit`); mit `--memory-limit=-1` läuft es durch. Die CI ruft phpstan
   bereits mit `--memory-limit=2G` auf.
+- **GitHub-CI:** Der erste Lauf (`44040051743`) scheiterte nur am WordPress Plugin Check. Dessen neueste Version
+  hat eine neue Regel `plugin_header_tested_up_to_not_allowed`: `Tested up to` darf nur noch in `readme.txt`
+  stehen. Die Zeile wurde aus dem Plugin-Header von `woo-jtl-connector.php` entfernt. WordPress liest den Wert
+  ohnehin nur aus der readme, und `WC tested up to` bleibt im Header, weil WooCommerce ihn von dort liest.
+  Upstream hat das bis 2.5.0 noch nicht angepasst, beim nächsten Merge kann die Zeile also wieder als Konflikt
+  auftauchen. Danach war die CI komplett grün (Lauf `44040774328`, u. a. **PHPUnit unter PHP 8.3**).
+- Der ZIP `woo-jtl-connector-camplorer-2.4.5.0.zip` entstand vor dieser Header-Korrektur. Funktional macht das
+  keinen Unterschied.
 
-#### Noch offen: Upstream 2.5.0
+### Upstream 2.5.0 (November 2026)
 
-2.5.0 (November 2026) schließt weitere Lücken, die auch 2.4.5.0 noch hat: Umgehung der Anmeldung über einen
-leeren `jtlauth`-Parameter, SQL-Injection beim Zahlungsabgleich von Statusänderungen, gespeichertes XSS über
-Beschreibungen. Gleichzeitig hebt 2.5.0 den Connector-Core auf 6.0.1 sowie PHP-DI 7, Monolog 3, Symfony 7.4 und
-Doctrine DBAL 4. `jtl/connector` 6.0.1 verlangt PHP ≥ 8.3, ist also mit dem Fork vereinbar. Die
-`composer.lock` muss dafür aber für 8.3 neu aufgelöst werden (siehe Pflicht-Check PHP 8.3). Eigener Merge mit
-Test vor dem Ausrollen.
+Merge des Upstream-Tags `2.5.0` auf Basis von 2.4.5.0 über den Integrationsbranch `merge/upstream-2.5.0`.
+Fork-Version **2.5.0.0**. Großes Update: neuer Connector-Core und neue Hauptversionen der Bibliotheken.
+
+#### Was upstream mitbringt
+
+- **Sicherheit (CO-3671):** Connector-Core `jtl/connector` **6.0.1** (vorher `dev-master` 5.x). Jede Anfrage wird
+  authentifiziert, bevor die Methode aufgelöst wird. Die Anmeldung ließ sich vorher mit einem **leeren
+  `jtlauth`-Parameter umgehen**. Fehlerantworten enthalten keine Stacktraces, Exception-Details oder Serverpfade mehr.
+- **Sicherheit (CO-3667):** SQL-Injection beim Zahlungsabgleich von Statusänderungen (`StatusChangeController`).
+- **Sicherheit (CO-3668):** gespeichertes XSS über Beschreibungen von Produkten, Kategorien und Herstellern. Der
+  Connector schaltet den WordPress-HTML-Filter (kses) beim Speichern nicht mehr ab (`ProductController`,
+  `CategoryController`, `ManufacturerController`, `PerfectWooCommerceBrands`). Variantenbeschreibungen laufen
+  durch `wp_kses_post()`. **Folge:** `<iframe>`, `<script>`, `<style>` usw. werden aus Beschreibungen aus der Wawi
+  entfernt. Für Kategorie- und Herstellerbeschreibungen gilt der strengere Begriffsfilter, der nur Inline-Tags wie
+  `strong`, `em` und `a` zulässt. **Bei camplorer geprüft (17.11.2026), ohne Auswirkung:** Produktbeschreibungen
+  enthalten kein `iframe`/`script`/`style`, YouTube-Videos stehen als einfache URL im Text (oEmbed), und die
+  Kategorie- und Markenbeschreibungen sind leer oder reiner Text.
+- **CO-3661:** Das Datenbank-Update läuft nur noch nach einem Plugin-Update statt bei jedem Admin-Aufruf
+  (`version_compare` gegen `build-config.yaml`; funktioniert auch mit vierstelligen Fork-Versionen).
+- **CO-3660:** USt-IdNr. und Anrede von Bestellungen mit HPOS und Germanized Pro.
+- Leere Datei im Bildarchiv bricht den Bild-Push nicht mehr ab.
+- Bibliotheken: PHP-DI 7, Monolog 3, Symfony 7.4, Doctrine DBAL 4, `psr/log` 3. Eigene Erweiterungen mit
+  `@Inject`-Annotationen müssten auf `#[Inject]` umgestellt werden. Im Fork-Code gibt es keine.
+
+#### Konflikte und Auflösung
+
+Probelauf mit `git merge-tree`: 8 Konflikte. Die Marker-Anzahl ist je Datei unverändert. Die automatisch
+zusammengeführten Fork-Dateien `includes/JtlConnectorAdmin.php`, `ManufacturerController.php` und
+`PerfectWooCommerceBrands.php` enthalten upstream nur den Versions-Check bzw. das Entfernen der kses-Abschaltung,
+keine Fork-Zeilen.
+
+| Datei | Konflikt | Auflösung |
+|---|---|---|
+| `src/Controllers/ProductController.php` | Upstream entfernt `remove_filter(…kses…)`, Fork hat den ACF-Aufruf entfernt (PR #1) | **beides weg**: kein Abschalten von kses, kein `ProductAdvancedCustomFieldsController` |
+| `composer.json` | `php` / `jtl/connector` | `"php": ">=8.3"`, `"jtl/connector": "^6.0.1"` (`psr/log: ^3.0` ohne Konflikt übernommen) |
+| `composer.lock` | komplett | Upstream-Lock übernommen, dann nur die zwei Pakete mit PHP ≥ 8.4 gezielt neu aufgelöst: `doctrine/instantiator` 2.1.0 → **2.0.0**, `symfony/string` v8.0.15 → **v7.4.22**. `platform-overrides` = 8.3.0. Alle anderen Versionen sind identisch mit upstream. |
+| `.github/workflows/ci.yaml` | PHPUnit-Matrix (upstream `8.4`, `8.5`) | Fork: nur `8.3` |
+| `.github/copilot-instructions.md` | Beschreibung, CI, Workflow-Tabelle | Fork-Fassung behalten |
+| `build-config.yaml`, `readme.txt` | Version | `2.5.0.0` |
+| `woo-jtl-connector.php` | Version / `Requires PHP` | `2.5.0.0` / **8.3**; `Tested up to` entfernt (siehe 2.4.5) |
+
+Wichtige Versionen im Lock: `jtl/connector` 6.0.1 (verlangt PHP ≥ 8.3), `php-di/php-di` 7.1.1, `monolog/monolog` 3.12.1,
+`doctrine/dbal` 4.5.0, `symfony/event-dispatcher` v7.4.17, `symfony/finder` v7.4.23, `symfony/yaml` v6.4.50.
+
+#### Prüfung
+
+- PHPUnit: **280 Tests grün** (lokal PHP 8.5).
+- phpcs: keine Befunde außer CRLF-Artefakten. phpstan: `[OK] No errors`.
 
 ### Fork-Revision 2.4.4.01 (Oktober 2026)
 
